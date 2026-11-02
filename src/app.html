@@ -63,7 +63,9 @@ main{padding:8px 0 40px}
 #player{position:fixed;inset:0;z-index:20;background:#000;display:none;flex-direction:column}
 #player.on{display:flex}
 #player video{flex:1;width:100%;min-height:0;background:#000}
-#pbar{display:flex;align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#0b0c10}
+#pbar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 16px 28px;background:linear-gradient(rgba(0,0,0,.75),rgba(0,0,0,0));transition:opacity .6s ease}
+#player.idle #pbar{opacity:0;pointer-events:none}
+#player.idle{cursor:none}
 #pbar .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pmsg{position:absolute;left:0;right:0;top:40%;text-align:center;color:#fff;padding:0 20px;pointer-events:none}
 #sheet{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
@@ -438,6 +440,17 @@ function stopMedia() {
   video.removeAttribute("src"); video.load();
 }
 let beatTimer = null;
+// Le bandeau du lecteur disparaît en fondu après 3 s sans activité pendant la lecture
+let idleTimer = null;
+function wakeBar() {
+  const pl = $("#player");
+  pl.classList.remove("idle");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (pl.classList.contains("on") && !video.paused) pl.classList.add("idle"); }, 3000);
+}
+["mousemove", "touchstart", "keydown", "click"].forEach((ev) => document.addEventListener(ev, () => { if ($("#player").classList.contains("on")) wakeBar(); }, { passive: true }));
+video.addEventListener("play", wakeBar);
+video.addEventListener("pause", () => { clearTimeout(idleTimer); $("#player").classList.remove("idle"); });
 // Bouton Retour de la télécommande / geste retour : ferme le lecteur au lieu de quitter l'app
 window.addEventListener("popstate", () => {
   if ($("#player").classList.contains("on")) closePlayer(true);
