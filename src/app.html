@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Lecteur M3U</title>
+<style>
+:root{--bg:#0f1115;--panel:#181b22;--tile:#20242d;--line:#2b303b;--text:#eef0f4;--muted:#9aa1ae;--accent:#4f8cff;--live:#ff4d5e;--radius:12px}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(15,17,21,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0 8px 0 0;white-space:nowrap}
+nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{padding:7px 12px;border-radius:999px;color:var(--muted);white-space:nowrap}
+nav button.on{background:var(--tile);color:var(--text)}
+#search{margin-left:auto;min-width:0;width:180px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit}
+main{padding:8px 0 40px}
+.row{margin:18px 0}
+.row h2{font-size:17px;margin:0 16px 10px;display:flex;align-items:center;gap:8px}
+.row h2 small{color:var(--muted);font-weight:400;font-size:13px}
+.strip{display:flex;gap:12px;overflow-x:auto;padding:4px 16px 10px;scroll-snap-type:x proximity;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:4px 16px}
+.tile{position:relative;flex:0 0 auto;width:160px;text-align:left;background:var(--tile);border-radius:var(--radius);overflow:hidden;scroll-snap-align:start;outline:none;transition:transform .12s, box-shadow .12s}
+.grid .tile{width:auto}
+.tile:focus-visible,.tile:hover{transform:scale(1.04);box-shadow:0 0 0 3px var(--accent)}
+.tile .art{aspect-ratio:16/10;background:#14171d center/contain no-repeat;display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--muted);padding:8px;text-align:center}
+.tile.poster .art{aspect-ratio:2/3;background-size:cover}
+.tile .meta{padding:8px 10px 10px}
+.tile .t{font-size:14px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .s{font-size:12px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.12)}
+.tile .bar i{display:block;height:100%;background:var(--accent)}
+.tile .fav{position:absolute;top:6px;right:8px;color:#ffd24d;font-size:16px;text-shadow:0 1px 3px #000}
+.badge{position:absolute;top:6px;left:6px;background:var(--live);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:6px}
+.cats{display:flex;gap:8px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cats button{padding:6px 12px;border:1px solid var(--line);border-radius:999px;white-space:nowrap;color:var(--muted)}
+.cats button.on{border-color:var(--accent);color:var(--text)}
+.empty{color:var(--muted);padding:0 16px}
+#status{padding:40px 16px;text-align:center;color:var(--muted)}
+#login{max-width:340px;margin:12vh auto;padding:24px;background:var(--panel);border-radius:16px;text-align:center}
+#login input{width:100%;margin:14px 0;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:20px;text-align:center;letter-spacing:4px}
+.btn{padding:10px 18px;border-radius:10px;background:var(--accent);color:#fff;font-weight:600}
+.btn.ghost{background:var(--tile)}
+.btn:focus-visible{outline:3px solid #fff}
+.avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.avatar:focus-visible{outline:3px solid #fff;outline-offset:2px}
+#profiles{text-align:center;padding:12vh 16px}
+#profiles h2{font-size:26px;margin:0 0 28px}
+.plist{display:flex;flex-wrap:wrap;gap:24px;justify-content:center;margin-bottom:28px}
+.pitem{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--muted)}
+.avatar.big{width:96px;height:96px;border-radius:20px;font-size:40px;transition:transform .12s}
+.avatar.big:hover,.avatar.big:focus-visible{transform:scale(1.08)}
+.avatar.add{background:var(--tile);color:var(--muted)}
+.pdel{color:var(--live);font-size:13px}
+#player{position:fixed;inset:0;z-index:20;background:#000;display:none;flex-direction:column}
+#player.on{display:flex}
+#player video{flex:1;width:100%;min-height:0;background:#000}
+#pbar{display:flex;align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#0b0c10}
+#pbar .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pmsg{position:absolute;left:0;right:0;top:40%;text-align:center;color:#fff;padding:0 20px;pointer-events:none}
+#sheet{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+#sheet.on{display:flex}
+#sheet .box{width:100%;max-width:760px;max-height:85vh;overflow:auto;background:var(--panel);border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+#sheet h3{margin:0 0 4px}
+#sheet p{color:var(--muted);margin:4px 0 12px}
+.ep{display:flex;width:100%;gap:10px;padding:10px;border-radius:10px;text-align:left;align-items:center}
+.ep:hover,.ep:focus-visible{background:var(--tile);outline:none}
+.ep .n{color:var(--muted);width:32px;flex:none}
+.ep .pp{margin-left:auto;font-size:12px;color:var(--accent)}
+@media (max-width:600px){header{flex-wrap:wrap}#search{width:100%;order:3;margin:0}.tile{width:132px}.grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
+@media (min-width:1200px){.tile{width:200px}}
+</style>
+</head>
+<body>
+<div id="app"><div id="status">Chargement…</div></div>
+
+<div id="sheet"><div class="box" id="sheetBox"></div></div>
+<div id="player">
+  <video id="video" playsinline controls autoplay></video>
+  <div id="pmsg"></div>
+  <div id="pbar">
+    <button class="btn ghost" id="pclose">✕ Fermer</button>
+    <div class="ttl" id="ptitle"></div>
+    <button class="btn ghost" id="pfav">☆ Favori</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
+<script>
+"use strict";
+// ---------- Stockage local (sera synchronisé entre appareils à l'étape 2) ----------
+const Store = {
+  pid: (() => { try { return localStorage.getItem("profile") || ""; } catch { return ""; } })(),
+  get(k, d) { try { const v = localStorage.getItem(k + ":" + this.pid); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k + ":" + this.pid, JSON.stringify(v)); } catch {} },
+  use(pid) { this.pid = pid; try { localStorage.setItem("profile", pid); } catch {} },
+  allFavs() { return this.get("favs", {}); },
+  favs() { const o = {}; for (const [k, v] of Object.entries(this.allFavs())) if (!v.deleted) o[k] = v; return o; },
+  isFav(key) { return !!this.favs()[key]; },
+  toggleFav(item) {
+    const f = this.allFavs();
+    const on = !(f[item.key] && !f[item.key].deleted);
+    f[item.key] = on ? { ...item, at: Date.now() } : { key: item.key, deleted: true, at: Date.now() };
+    this.set("favs", f); this.push(); return on;
+  },
+  positions() { return this.get("pos", {}); },
+  savePos(item, t, d) {
+    const p = this.positions();
+    p[item.key] = { ...item, t, d, at: Date.now() };
+    this.set("pos", p); this.push();
+  },
+  pos(key) { return this.positions()[key]; },
+  // Envoie l'état local au relais, qui garde la version la plus récente de chaque élément
+  _t: null,
+  push() { clearTimeout(this._t); this._t = setTimeout(() => this.sync(), 2000); },
+  async sync() {
+    if (!this.pid) return false;
+    try {
+      const r = await fetch("/sync?profile=" + encodeURIComponent(this.pid), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ favs: this.allFavs(), pos: this.positions() }) });
+      if (r.status === 404) { this.pid = ""; return false; }
+      if (!r.ok) return false;
+      const d = await r.json();
+      if (d.favs) this.set("favs", d.favs);
+      if (d.pos) this.set("pos", d.pos);
+      return true;
+    } catch { return false; }
+  },
+};
+document.addEventListener("visibilitychange", async () => {
+  if (!document.hidden && !document.querySelector("#player.on") && D.live.length && await Store.sync()) render();
+});
+
+// ---------- Données ----------
+const D = { live: [], liveCats: [], vod: [], vodCats: [], series: [], seriesCats: [], info: null };
+const S = { tab: "home", cat: null, q: "" };
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const img = (u) => (u && /^https?:/i.test(u) ? "/img?u=" + encodeURIComponent(u) : "");
+
+async function api(action, params = {}) {
+  const q = new URLSearchParams({ action, ...params });
+  const r = await fetch("/api?" + q, { credentials: "same-origin" });
+  if (r.status === 401) throw Object.assign(new Error("auth"), { auth: true });
+  if (!r.ok) {
+    let d = ""; try { const j = await r.json(); d = j.error || ""; } catch {}
+    throw new Error((action || "infos compte") + " : " + (d || "erreur " + r.status));
+  }
+  try { return await r.json(); } catch { throw new Error((action || "infos compte") + " : réponse illisible"); }
+}
+const arr = (x) => (Array.isArray(x) ? x : x && typeof x === "object" ? Object.values(x) : []);
+
+async function loadAll() {
+  $("#app").innerHTML = '<div id="status">Mise à jour de la playlist…</div>';
+  // Rechargée à chaque démarrage : la liste complète est redemandée au fournisseur
+  const [info, lc, ls, vc, vs, sc, ss] = await Promise.all([
+    api(""), api("get_live_categories"), api("get_live_streams"),
+    api("get_vod_categories"), api("get_vod_streams"),
+    api("get_series_categories"), api("get_series"),
+  ]);
+  D.info = info; D.liveCats = arr(lc); D.live = arr(ls);
+  D.vodCats = arr(vc); D.vod = arr(vs); D.seriesCats = arr(sc); D.series = arr(ss);
+  render();
+}
+
+// ---------- Modèle commun des éléments ----------
+function liveItem(s) { return { key: "live:" + s.stream_id, type: "live", id: s.stream_id, title: s.name, img: s.stream_icon }; }
+function vodItem(s) { return { key: "movie:" + s.stream_id, type: "movie", id: s.stream_id, title: s.name, img: s.stream_icon, ext: s.container_extension || "mp4", added: +s.added || 0 }; }
+function seriesItem(s) { return { key: "series:" + s.series_id, type: "series", id: s.series_id, title: s.name, img: s.cover, added: +s.last_modified || 0 }; }
+
+// ---------- Rendu ----------
+function tile(it, opts = {}) {
+  const p = it.type !== "live" ? Store.pos(it.key) : null;
+  const pct = p && p.d ? Math.min(100, (p.t / p.d) * 100) : 0;
+  const poster = it.type !== "live" && !opts.wide;
+  const src = img(it.img);
+  return `<button class="tile${poster ? " poster" : ""}" data-key="${esc(it.key)}">
+    <div class="art" ${src ? `style="background-image:url('${esc(src)}')"` : ""}>${src ? "" : esc(it.title)}</div>
+    ${it.type === "live" ? '<span class="badge">DIRECT</span>' : ""}
+    ${Store.isFav(it.key) ? '<span class="fav">★</span>' : ""}
+    <div class="meta"><div class="t">${esc(it.title)}</div><div class="s" data-epg="${it.type === "live" ? it.id : ""}">${esc(opts.sub || "")}</div></div>
+    ${pct > 0 ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
+  </button>`;
+}
+const REG = new Map(); // key -> item, pour les clics
+function reg(list) { list.forEach((i) => REG.set(i.key, i)); return list; }
+function row(title, items, opts = {}) {
+  if (!items.length) return opts.emptyText ? `<section class="row"><h2>${title}</h2><p class="empty">${opts.emptyText}</p></section>` : "";
+  reg(items);
+  return `<section class="row"><h2>${title}${opts.small ? ` <small>${opts.small}</small>` : ""}</h2><div class="strip">${items.map((i) => tile(i, opts)).join("")}</div></section>`;
+}
+function grid(items, opts = {}) {
+  reg(items);
+  if (!items.length) return '<p class="empty">Aucun résultat.</p>';
+  return `<div class="grid">${items.slice(0, 300).map((i) => tile(i, opts)).join("")}</div>${items.length > 300 ? `<p class="empty">${items.length - 300} autres… affinez avec la recherche.</p>` : ""}`;
+}
+
+function shell(body) {
+  const tabs = [["home", "Accueil"], ["live", "TV en direct"], ["movie", "Films"], ["series", "Séries"], ["fav", "Favoris"]];
+  return `<header><h1>▶︎ Lecteur</h1><nav>${tabs.map(([k, l]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${l}</button>`).join("")}</nav>
+    <input id="search" type="search" placeholder="Rechercher…" value="${esc(S.q)}">${avatar(PROFILES[Store.pid], "pbtn", "Changer de profil")}</header><main>${body}</main>`;
+}
+
+function render() {
+  REG.clear();
+  let body = "";
+  const q = S.q.trim().toLowerCase();
+  if (q) {
+    const f = (l) => l.filter((x) => (x.title || "").toLowerCase().includes(q));
+    body = row("TV en direct", f(D.live.map(liveItem)).slice(0, 40), { wide: true })
+      + row("Films", f(D.vod.map(vodItem)).slice(0, 40))
+      + row("Séries", f(D.series.map(seriesItem)).slice(0, 40));
+    if (!body) body = '<p class="empty" style="padding-top:20px">Aucun résultat.</p>';
+  } else if (S.tab === "home") {
+    const favs = Object.values(Store.favs()).sort((a, b) => b.at - a.at);
+    const resume = Object.values(Store.positions())
+      .filter((p) => p.d && p.t > 30 && p.t / p.d < 0.95).sort((a, b) => b.at - a.at).slice(0, 20);
+    const favLive = favs.filter((f) => f.type === "live");
+    const liveNow = (favLive.length ? favLive : D.live.slice(0, 20).map(liveItem)).slice(0, 20);
+    const newMovies = D.vod.map(vodItem).sort((a, b) => b.added - a.added).slice(0, 30);
+    const newSeries = D.series.map(seriesItem).sort((a, b) => b.added - a.added).slice(0, 30);
+    body = row("Reprendre", resume)
+      + row("En direct maintenant", liveNow, { wide: true, small: favLive.length ? "vos chaînes favorites" : "" })
+      + row("Favoris", favs.filter((f) => f.type !== "live"), { emptyText: favs.length ? "" : "Appuyez sur ☆ pendant la lecture pour ajouter un favori." })
+      + row("Nouveaux films", newMovies)
+      + row("Nouvelles séries", newSeries);
+  } else if (S.tab === "fav") {
+    body = `<section class="row"><h2>Favoris</h2>${grid(Object.values(Store.favs()).sort((a, b) => b.at - a.at))}</section>`;
+  } else {
+    const cfg = {
+      live: [D.liveCats, D.live, liveItem, { wide: true }],
+      movie: [D.vodCats, D.vod, vodItem, {}],
+      series: [D.seriesCats, D.series, seriesItem, {}],
+    }[S.tab];
+    const [cats, list, mk, opts] = cfg;
+    if (!S.cat && cats[0]) S.cat = String(cats[0].category_id);
+    const items = list.filter((x) => String(x.category_id) === S.cat).map(mk);
+    if (S.tab !== "live") items.sort((a, b) => b.added - a.added);
+    body = `<div class="cats">${cats.map((c) => `<button data-cat="${esc(c.category_id)}" class="${String(c.category_id) === S.cat ? "on" : ""}">${esc(c.category_name)}</button>`).join("")}</div>${grid(items, opts)}`;
+  }
+  const hadFocus = document.activeElement && document.activeElement.id === "search";
+  $("#app").innerHTML = shell(body);
+  if (hadFocus) { const s = $("#search"); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+  loadEpg();
+}
+
+// Programme en cours des chaînes visibles (limité pour rester rapide)
+const EPG = new Map();
+async function loadEpg() {
+  const els = [...document.querySelectorAll("[data-epg]")].filter((e) => e.dataset.epg).slice(0, 40);
+  await Promise.all(els.map(async (el) => {
+    const id = el.dataset.epg;
+    if (!EPG.has(id)) {
+      EPG.set(id, api("get_short_epg", { stream_id: id, limit: 1 }).then((r) => {
+        const l = arr(r && r.epg_listings)[0];
+        if (!l) return "";
+        const t = b64(l.title), h = (l.start || "").slice(11, 16), e = (l.end || "").slice(11, 16);
+        return t ? (h ? `${h}–${e} · ` : "") + t : "";
+      }).catch(() => ""));
+    }
+    const txt = await EPG.get(id);
+    if (txt && el.isConnected) el.textContent = txt;
+  }));
+}
+function b64(s) { try { return decodeURIComponent(escape(atob(s || ""))); } catch { return s || ""; } }
+
+// ---------- Séries ----------
+async function openSeries(it) {
+  const box = $("#sheetBox");
+  box.innerHTML = `<h3>${esc(it.title)}</h3><p>Chargement des épisodes…</p>`;
+  if (!$("#sheet").classList.contains("on")) history.pushState({ layer: "sheet" }, "");
+  $("#sheet").classList.add("on");
+  const fav = Store.isFav(it.key);
+  try {
+    const r = await api("get_series_info", { series_id: it.id });
+    const eps = r.episodes || {};
+    const seasons = Object.keys(eps).sort((a, b) => a - b);
+    let html = `<h3>${esc(it.title)}</h3><p>${esc((r.info && r.info.plot) || "")}</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn ghost" id="sfav">${fav ? "★ Retirer des favoris" : "☆ Ajouter aux favoris"}</button><button class="btn ghost" id="sclose">Fermer</button></div>`;
+    for (const s of seasons) {
+      html += `<h4 style="margin:14px 0 4px">Saison ${esc(s)}</h4>`;
+      for (const e of arr(eps[s])) {
+        const ep = { key: "ep:" + e.id, type: "series", id: e.id, ext: e.container_extension || "mp4", title: `${it.title} · S${s}E${e.episode_num} ${e.title && !String(e.title).startsWith(it.title) ? "· " + e.title : ""}`, img: (e.info && e.info.movie_image) || it.img, dur: +(e.info && e.info.duration_secs) || 0 };
+        REG.set(ep.key, ep);
+        const p = Store.pos(ep.key);
+        const pp = p && p.d ? Math.round((p.t / p.d) * 100) + " %" : "";
+        html += `<button class="ep" data-key="${esc(ep.key)}"><span class="n">${esc(e.episode_num)}</span><span>${esc(e.title || "Épisode " + e.episode_num)}</span><span class="pp">${pp}</span></button>`;
+      }
+    }
+    box.innerHTML = html;
+    $("#sfav").onclick = () => { Store.toggleFav(it); closeSheet(); render(); };
+    $("#sclose").onclick = closeSheet;
+    (box.querySelector(".ep") || $("#sclose")).focus();
+  } catch (e) { box.innerHTML = `<h3>${esc(it.title)}</h3><p>Impossible de charger les épisodes.</p>`; }
+}
+function closeSheet(fromPop) {
+  $("#sheet").classList.remove("on");
+  if (fromPop !== true && history.state && history.state.layer === "sheet") history.back();
+}
+
+// ---------- Lecteur ----------
+let hls = null, cur = null, saveTimer = null;
+const video = $("#video");
+function streamUrl(it) {
+  if (it.type === "live") return `/live/${it.id}.m3u8`;
+  return `/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext || "mp4"}`;
+}
+// Le Mac sait-il convertir les formats non lisibles (mkv, avi…) ?
+let CAPS = null;
+async function caps() {
+  if (CAPS && CAPS.remux) return CAPS;
+  CAPS = await fetch("/caps").then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+  return CAPS;
+}
+const NATIVE = /^(mp4|m4v|mov)$/i;
+const SID = Math.random().toString(36).slice(2);
+async function watch(op, extra = {}) {
+  try {
+    const r = await fetch("/watch", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ op, sid: SID, name: (PROFILES[Store.pid] || {}).name || "Quelqu'un", title: cur && cur.title, ...extra }) });
+    return r.ok ? await r.json() : { ok: true };
+  } catch { return { ok: true }; }
+}
+function ask(html, buttons) {
+  return new Promise((resolve) => {
+    const box = $("#sheetBox");
+    box.innerHTML = html + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">${buttons.map((b, i) => `<button class="btn ${i ? "ghost" : ""}" data-ans="${i}">${esc(b)}</button>`).join("")}</div>`;
+    $("#sheet").classList.add("on");
+    box.querySelectorAll("[data-ans]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); closeSheet(); resolve(+b.dataset.ans); });
+    box.querySelector("[data-ans]").focus();
+  });
+}
+async function play(it, forceRemux) {
+  if (it.type === "series" && it.key.startsWith("series:")) return openSeries(it);
+  // Depuis la liste d'épisodes : la fiche cède sa place au lecteur dans l'historique
+  if (history.state && history.state.layer === "sheet") { $("#sheet").classList.remove("on"); history.replaceState({ layer: "player-pending" }, ""); }
+  else closeSheet();
+  if (!forceRemux) {
+    let w = await watch("start", { title: it.title });
+    if (w.busy) {
+      const a = await ask(`<h3>${esc(w.busy.name)} regarde déjà</h3><p>« ${esc(w.busy.title || "une vidéo")} ». Votre abonnement ne permet qu'une lecture à la fois.</p>`, ["Prendre la main", "Annuler"]);
+      if (a !== 0) return;
+      await watch("start", { title: it.title, force: true });
+      await new Promise((r) => setTimeout(r, 3500)); // laisse l'autre lecture se couper
+    }
+  }
+  cur = { ...it, offset: 0 };
+  const me = cur;
+  $("#ptitle").textContent = it.title;
+  $("#pfav").textContent = Store.isFav(it.key) ? "★ Favori" : "☆ Favori";
+  $("#pmsg").textContent = "";
+  if (history.state && history.state.layer === "player-pending") history.replaceState({ layer: "player" }, "");
+  else if (!$("#player").classList.contains("on")) history.pushState({ layer: "player" }, "");
+  $("#player").classList.add("on");
+  $("#pclose").focus();
+  stopMedia();
+  const p = it.type !== "live" ? Store.pos(it.key) : null;
+  const resumeAt = p && p.t > 5 && (!p.d || p.t / p.d < 0.95) ? p.t : 0;
+  let url = streamUrl(it);
+  if (it.type !== "live") {
+    if (!me.dur && p && p.d) me.dur = p.d;
+    if (!me.dur && it.type === "movie") {
+      try { const vi = await api("get_vod_info", { vod_id: it.id }); me.dur = +(vi && vi.info && vi.info.duration_secs) || 0; } catch {}
+    }
+    // Lecture directe d'abord (Chrome lit les mkv) ; conversion par le Mac seulement si le navigateur échoue (Safari)
+    if (forceRemux && (await caps()).remux) {
+      me.offset = Math.floor(resumeAt);
+      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}/index.m3u8`;
+      $("#pmsg").textContent = "Préparation de la vidéo…";
+    }
+  }
+  if (cur !== me) return;
+  const isHls = url.includes(".m3u8");
+  if (isHls && !video.canPlayType("application/vnd.apple.mpegurl") && window.Hls && Hls.isSupported()) {
+    hls = new Hls({ xhrSetup: (x) => { x.withCredentials = true; }, manifestLoadingTimeOut: 40000, fragLoadingTimeOut: 40000 });
+    hls.loadSource(url); hls.attachMedia(video);
+    hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) $("#pmsg").textContent = "Flux indisponible pour le moment."; });
+  } else {
+    video.src = url;
+  }
+  video.onloadedmetadata = () => { if (!me.offset && resumeAt) video.currentTime = resumeAt; };
+  video.onplaying = () => { if ($("#pmsg").textContent.startsWith("Préparation")) $("#pmsg").textContent = ""; };
+  video.onerror = async () => {
+    if (!forceRemux && !me.offset && cur === me && it.type !== "live" && !NATIVE.test(it.ext || "") && (await caps()).remux) return play(it, true);
+    $("#pmsg").textContent = !NATIVE.test(it.ext || "") && it.type !== "live" ? "Ce format vidéo (" + it.ext + ") n'est pas lisible ici" + (forceRemux ? " (conversion échouée, code " + ((video.error && video.error.code) || "?") + ")." : CAPS && CAPS.remux === false ? " (outil de conversion pas encore prêt sur le Mac)." : ".") : "Lecture impossible pour le moment.";
+  };
+  video.play().catch(() => {});
+  saveTimer = setInterval(savePos, 5000);
+  clearInterval(beatTimer);
+  beatTimer = setInterval(async () => {
+    const w = await watch("beat");
+    if (w.kicked && cur === me) {
+      closePlayer();
+      ask(`<h3>Lecture interrompue</h3><p>${esc(w.by)} a pris la main sur l'abonnement.</p>`, ["OK"]);
+    }
+  }, 3000);
+}
+function savePos() {
+  if (!cur || cur.type === "live" || !video.currentTime) return;
+  const t = Math.floor(cur.offset + video.currentTime);
+  const d = Math.floor(cur.dur || (isFinite(video.duration) ? cur.offset + video.duration : 0));
+  if (!d) return;
+  Store.savePos({ key: cur.key, type: cur.type, id: cur.id, title: cur.title, img: cur.img, ext: cur.ext, dur: cur.dur }, t, d);
+}
+function stopMedia() {
+  clearInterval(saveTimer);
+  if (hls) { hls.destroy(); hls = null; }
+  video.removeAttribute("src"); video.load();
+}
+let beatTimer = null;
+// Bouton Retour de la télécommande / geste retour : ferme le lecteur au lieu de quitter l'app
+window.addEventListener("popstate", () => {
+  if ($("#player").classList.contains("on")) closePlayer(true);
+  else if ($("#sheet").classList.contains("on")) closeSheet(true);
+});
+function closePlayer(fromPop) {
+  if (fromPop !== true && history.state && history.state.layer === "player") { history.back(); return; }
+  savePos(); stopMedia(); clearInterval(beatTimer); if (cur) watch("stop"); cur = null;
+  $("#player").classList.remove("on");
+  render();
+}
+video.addEventListener("pause", savePos);
+$("#pclose").onclick = closePlayer;
+$("#pfav").onclick = () => { if (cur) $("#pfav").textContent = Store.toggleFav({ key: cur.key, type: cur.type, id: cur.id, title: cur.title, img: cur.img, ext: cur.ext }) ? "★ Favori" : "☆ Favori"; };
+document.addEventListener("visibilitychange", () => { if (document.hidden) savePos(); });
+
+// ---------- Interactions ----------
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#pbtn")) { savePos(); showProfiles(false); return; }
+  const t = e.target.closest("[data-tab]");
+  if (t) { S.tab = t.dataset.tab; S.cat = null; S.q = ""; render(); window.scrollTo(0, 0); return; }
+  const c = e.target.closest("[data-cat]");
+  if (c) { S.cat = c.dataset.cat; render(); return; }
+  const k = e.target.closest("[data-key]");
+  if (k && REG.has(k.dataset.key)) play(REG.get(k.dataset.key));
+  if (e.target.id === "sheet") closeSheet();
+});
+let qTimer;
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "search") return;
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => { S.q = e.target.value; render(); }, 250);
+});
+
+// Navigation à la télécommande / aux flèches (utile sur la TV)
+document.addEventListener("keydown", (e) => {
+  const back = e.key === "Escape" || e.key === "Backspace" && document.activeElement.tagName !== "INPUT" || e.keyCode === 10009 || e.key === "GoBack" || e.key === "BrowserBack";
+  if (back) {
+    if ($("#player").classList.contains("on")) { e.preventDefault(); closePlayer(); return; }
+    if ($("#sheet").classList.contains("on")) { e.preventDefault(); closeSheet(); return; }
+  }
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!dir || $("#player").classList.contains("on") && document.activeElement === video) return;
+  const a = document.activeElement;
+  if (a && a.tagName === "INPUT" && dir[0]) return;
+  const scope = $("#sheet").classList.contains("on") ? $("#sheet") : $("#player").classList.contains("on") ? $("#player") : $("#app");
+  const els = [...scope.querySelectorAll("button, input, video")].filter((x) => x.offsetParent !== null || x.tagName === "VIDEO");
+  if (!els.length) return;
+  if (!a || !scope.contains(a)) { e.preventDefault(); els[0].focus(); return; }
+  const r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  let best = null, bestD = Infinity;
+  for (const x of els) {
+    if (x === a) continue;
+    const b = x.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
+    const dx = bx - cx, dy = by - cy;
+    const along = dx * dir[0] + dy * dir[1];
+    if (along <= 4) continue;
+    const across = Math.abs(dir[0] ? dy : dx);
+    const d = along + across * 3;
+    if (d < bestD) { bestD = d; best = x; }
+  }
+  if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" }); }
+});
+
+// ---------- Profils ----------
+let PROFILES = {};
+const COLORS = ["#4f8cff", "#ff6b6b", "#2ecc71", "#f5a623", "#a66bff", "#ff5fa2"];
+function avatar(p, id, label) {
+  if (!p) return "";
+  return `<button class="avatar" ${id ? `id="${id}"` : ""} title="${esc(label || p.name)}" style="background:${esc(p.color)}">${esc((p.name || "?").slice(0, 1).toUpperCase())}</button>`;
+}
+async function loadProfiles() {
+  const r = await fetch("/profiles");
+  if (r.status === 401) throw Object.assign(new Error("auth"), { auth: true });
+  PROFILES = (await r.json()).profiles || {};
+}
+function showProfiles(edit) {
+  const list = Object.entries(PROFILES).sort((a, b) => a[1].at - b[1].at);
+  $("#app").innerHTML = `<div id="profiles"><h2>Qui regarde ?</h2><div class="plist">
+    ${list.map(([id, p]) => `<div class="pitem"><button class="avatar big" data-pid="${esc(id)}" style="background:${esc(p.color)}">${esc(p.name.slice(0, 1).toUpperCase())}</button><div>${esc(p.name)}</div>${edit ? `<button class="pdel" data-del="${esc(id)}">Supprimer</button>` : ""}</div>`).join("")}
+    ${list.length < 6 ? `<div class="pitem"><button class="avatar big add" id="padd">+</button><div>Ajouter</div></div>` : ""}
+  </div>${list.length ? `<button class="btn ghost" id="pedit">${edit ? "Terminé" : "Gérer les profils"}</button>` : ""}</div>`;
+  $("#padd") && ($("#padd").onclick = async () => {
+    const name = prompt("Prénom du nouveau profil :");
+    if (!name || !name.trim()) return;
+    const r = await fetch("/profiles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, color: COLORS[list.length % COLORS.length] }) });
+    if (r.ok) { PROFILES = (await r.json()).profiles; showProfiles(edit); }
+  });
+  $("#pedit") && ($("#pedit").onclick = () => showProfiles(!edit));
+  document.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => {
+    const p = PROFILES[b.dataset.del];
+    if (!confirm(`Supprimer le profil ${p.name} et ses favoris ?`)) return;
+    const r = await fetch("/profiles?id=" + encodeURIComponent(b.dataset.del), { method: "DELETE" });
+    if (r.ok) { PROFILES = (await r.json()).profiles; if (!PROFILES[Store.pid]) Store.use(""); showProfiles(true); }
+  });
+  document.querySelectorAll("[data-pid]").forEach((b) => b.onclick = async () => {
+    if (edit) return;
+    Store.use(b.dataset.pid); S.tab = "home"; S.q = "";
+    await Store.sync();
+    if (D.live.length || D.vod.length) render(); else start();
+  });
+  const first = document.querySelector("[data-pid], #padd");
+  first && first.focus();
+}
+
+// ---------- Connexion ----------
+function showLogin(err) {
+  $("#app").innerHTML = `<form id="login"><h2>Lecteur M3U</h2><div style="color:var(--muted)">Entrez votre code d'accès</div>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" autofocus>
+    ${err ? '<div style="color:var(--live);margin-bottom:10px">Code incorrect</div>' : ""}
+    <button class="btn" type="submit">Entrer</button></form>`;
+  $("#login").onsubmit = async (e) => {
+    e.preventDefault();
+    const r = await fetch("/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ pin: $("#pin").value }) });
+    if (r.ok) start(); else showLogin(true);
+  };
+  $("#pin").focus();
+}
+async function start() {
+  try {
+    await loadProfiles();
+    if (!PROFILES[Store.pid]) return showProfiles(false);
+    await Store.sync();
+    await loadAll();
+  }
+  catch (e) {
+    if (e.auth) return showLogin(false);
+    $("#app").innerHTML = `<div id="status">Impossible de joindre le fournisseur.<br><small>${esc(e.message)}</small><br><br><button class="btn" onclick="start()">Réessayer</button></div>`;
+  }
+}
+start();
+</script>
+</body>
+</html>
