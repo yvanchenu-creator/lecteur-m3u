@@ -63,7 +63,8 @@ function probe(url) {
 
 const hide = (t) => t.split(String(env.XTREAM_PASS)).join("***").split(String(env.XTREAM_USER)).join("***");
 async function startSession(key, upstream, start, retry = 0, hint = {}) {
-  for (const [k, s] of SESS) if (SESS.size >= 2 && k !== key) stopSession(k);
+  // Une seule connexion autorisée par le fournisseur : on arrête toute autre conversion
+  for (const k of [...SESS.keys()]) if (k !== key) stopSession(k);
   const dir = join(TMP, key.replace(/[^\w.-]/g, "_"));
   mkdirSync(dir, { recursive: true });
   const sess = { dir, proc: null, last: Date.now(), done: false, failed: false };
@@ -75,7 +76,7 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
     : vcodec === "hevc" ? ["-c:v", "copy", "-tag:v", "hvc1"]
     : ["-c:v", "h264_videotoolbox", "-b:v", "6M"];
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error",
-    "-user_agent", UA, ...(start > 0 ? ["-ss", String(start)] : []), "-i", upstream,
+    "-user_agent", UA, ...(start > 0 ? [...(v[1] === "copy" ? ["-noaccurate_seek"] : []), "-ss", String(start)] : []), "-i", upstream,
     "-map", "0:v:0", "-map", "0:a:0?", ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2",
     "-avoid_negative_ts", "make_zero", "-max_muxing_queue_size", "4096",
     "-f", "hls", "-hls_time", "4", "-hls_init_time", "1", "-hls_list_size", "0", "-hls_playlist_type", "event",

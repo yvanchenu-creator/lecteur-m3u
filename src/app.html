@@ -381,7 +381,8 @@ async function play(it, forceRemux) {
   }
   if (cur !== me) return;
   const isHls = url.includes(".m3u8");
-  if (isHls && !video.canPlayType("application/vnd.apple.mpegurl") && window.Hls && Hls.isSupported()) {
+  // hls.js partout sauf chez Apple (le lecteur HLS natif récent de Chrome lit mal ces flux)
+  if (isHls && !APPLE && window.Hls && Hls.isSupported()) {
     hls = new Hls({ xhrSetup: (x) => { x.withCredentials = true; }, manifestLoadingTimeOut: 40000, fragLoadingTimeOut: 40000 });
     hls.loadSource(url); hls.attachMedia(video);
     hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) $("#pmsg").textContent = "Flux indisponible pour le moment."; });
