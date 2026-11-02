@@ -339,7 +339,8 @@ function ask(html, buttons) {
 }
 const APPLE = /Apple/.test(navigator.vendor || "") && !/Chrome|CriOS|Android/.test(navigator.userAgent) || /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 async function play(it, forceRemux) {
-  if (!forceRemux && APPLE && it.type !== "live" && !NATIVE.test(it.ext || "") && !(it.key || "").startsWith("series:") && (await caps()).remux) forceRemux = "apple";
+  // mkv/avi : toujours convertis par le Mac (Safari ne lit pas le mkv, Chrome n'a souvent pas le son AC3/DTS)
+  if (!forceRemux && it.type !== "live" && !NATIVE.test(it.ext || "") && !(it.key || "").startsWith("series:") && (await caps()).remux) forceRemux = "apple";
   if (it.type === "series" && it.key.startsWith("series:")) return openSeries(it);
   // Depuis la liste d'épisodes : la fiche cède sa place au lecteur dans l'historique
   if (history.state && history.state.layer === "sheet") { $("#sheet").classList.remove("on"); history.replaceState({ layer: "player-pending" }, ""); }
