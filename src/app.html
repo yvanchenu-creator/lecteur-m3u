@@ -248,7 +248,26 @@ function render() {
   const hadFocus = document.activeElement && document.activeElement.id === "search";
   $("#app").innerHTML = shell(body);
   if (hadFocus) { const s = $("#search"); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+  else restoreFocus();
+  const on = document.querySelector(".cats .on");
+  if (on) on.scrollIntoView({ block: "nearest", inline: "center" });
   loadEpg();
+}
+
+// Garde la sélection (télécommande) quand la page se redessine
+let LAST = null;
+document.addEventListener("focusin", (e) => {
+  const el = e.target;
+  if (!$("#app").contains(el)) return;
+  for (const a of ["data-key", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
+  LAST = el.id ? ["id", el.id] : null;
+});
+function restoreFocus() {
+  if (!LAST || (document.activeElement && document.activeElement !== document.body && $("#app").contains(document.activeElement))) return;
+  const [a, v] = LAST;
+  let el = a === "id" ? document.getElementById(v) : [...document.querySelectorAll(`#app [${a}]`)].find((x) => x.getAttribute(a) === v);
+  if (!el && a === "data-tab") el = document.querySelector("#app [data-tab].on");
+  if (el) { el.focus({ preventScroll: true }); el.scrollIntoView({ block: "nearest", inline: "nearest" }); }
 }
 
 // Programme en cours des chaînes visibles (limité pour rester rapide)
@@ -469,16 +488,30 @@ document.addEventListener("keydown", (e) => {
   if (!els.length) return;
   if (!a || !scope.contains(a)) { e.preventDefault(); els[0].focus(); return; }
   const r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  let best = null, bestD = Infinity;
+  // Navigation par lignes : gauche/droite restent dans la même ligne, haut/bas vont à la ligne voisine
+  const cand = [];
   for (const x of els) {
     if (x === a) continue;
-    const b = x.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
-    const dx = bx - cx, dy = by - cy;
-    const along = dx * dir[0] + dy * dir[1];
+    const b = x.getBoundingClientRect();
+    const bx = b.left + b.width / 2, by = b.top + b.height / 2;
+    const along = (bx - cx) * dir[0] + (by - cy) * dir[1];
     if (along <= 4) continue;
-    const across = Math.abs(dir[0] ? dy : dx);
-    const d = along + across * 3;
-    if (d < bestD) { bestD = d; best = x; }
+    const sameRow = dir[0] ? b.top < r.bottom - 4 && b.bottom > r.top + 4 : false;
+    cand.push({ x, along, across: Math.abs(dir[0] ? by - cy : bx - cx), top: b.top, sameRow });
+  }
+  let best = null;
+  if (dir[0]) {
+    const row = cand.filter((c) => c.sameRow);
+    const pool = row; // bout de ligne : on ne saute pas ailleurs
+    pool.sort((p, q) => (p.along + p.across * 3) - (q.along + q.across * 3));
+    best = pool[0] && pool[0].x;
+  } else if (cand.length) {
+    // la ligne la plus proche (éléments dont le haut est à moins de 30 px de la plus proche), puis le plus proche horizontalement
+    const edge = (c) => dir[1] > 0 ? c.top : -c.top;
+    const minEdge = Math.min(...cand.map(edge));
+    const row = cand.filter((c) => edge(c) - minEdge < 30);
+    row.sort((p, q) => p.across - q.across);
+    best = row[0].x;
   }
   if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" }); }
 });
