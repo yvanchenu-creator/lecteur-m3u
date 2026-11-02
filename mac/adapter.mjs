@@ -75,8 +75,8 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
     : vcodec === "hevc" ? ["-c:v", "copy", "-tag:v", "hvc1"]
     : ["-c:v", "h264_videotoolbox", "-b:v", "6M"];
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error",
-    "-user_agent", UA, "-fflags", "+genpts", ...(start > 0 ? ["-ss", String(start)] : []), "-i", upstream,
-    "-map", "0:v:0", "-map", "0:a:0?", ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-af", "aresample=async=1000",
+    "-user_agent", UA, ...(start > 0 ? ["-ss", String(start)] : []), "-i", upstream,
+    "-map", "0:v:0", "-map", "0:a:0?", ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2",
     "-avoid_negative_ts", "make_zero", "-max_muxing_queue_size", "4096",
     "-f", "hls", "-hls_time", "4", "-hls_init_time", "1", "-hls_list_size", "0", "-hls_playlist_type", "event",
     "-hls_segment_type", "fmp4", "-hls_flags", "temp_file", "-hls_fmp4_init_filename", "init.mp4",
