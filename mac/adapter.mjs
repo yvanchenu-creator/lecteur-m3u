@@ -4,6 +4,8 @@ import os from "node:os";
 import { readFileSync, writeFileSync, existsSync, renameSync, mkdirSync, rmSync, statSync, createReadStream } from "node:fs";
 import { spawn, execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { webcrypto } from "node:crypto";
+if (!globalThis.crypto) globalThis.crypto = webcrypto; // Node 18 (Ubuntu 24.04)
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
