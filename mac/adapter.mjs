@@ -62,21 +62,23 @@ function probe(url) {
 }
 
 const hide = (t) => t.split(String(env.XTREAM_PASS)).join("***").split(String(env.XTREAM_USER)).join("***");
-async function startSession(key, upstream, start, retry = 0) {
+async function startSession(key, upstream, start, retry = 0, hint = {}) {
   for (const [k, s] of SESS) if (SESS.size >= 2 && k !== key) stopSession(k);
   const dir = join(TMP, key.replace(/[^\w.-]/g, "_"));
   mkdirSync(dir, { recursive: true });
   const sess = { dir, proc: null, last: Date.now(), done: false, failed: false };
   SESS.set(key, sess);
-  if (!retry) await wait(1500); // laisse le temps à la tentative directe de libérer la connexion
-  const vcodec = await probe(upstream);
+  if (!retry && hint.direct) await wait(1500); // laisse le temps à la tentative directe de libérer la connexion
+  // Le codec annoncé par le fournisseur évite une analyse préalable (une connexion et plusieurs secondes de gagnées)
+  const vcodec = /^(h264|hevc)$/.test(hint.vc || "") ? hint.vc : await probe(upstream);
   const v = vcodec === "h264" ? ["-c:v", "copy"]
     : vcodec === "hevc" ? ["-c:v", "copy", "-tag:v", "hvc1"]
     : ["-c:v", "h264_videotoolbox", "-b:v", "6M"];
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error",
-    "-user_agent", UA, ...(start > 0 ? ["-ss", String(start)] : []), "-i", upstream,
-    "-map", "0:v:0", "-map", "0:a:0?", ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2",
-    "-f", "hls", "-hls_time", "6", "-hls_list_size", "0", "-hls_playlist_type", "event",
+    "-user_agent", UA, "-fflags", "+genpts", ...(start > 0 ? ["-ss", String(start)] : []), "-i", upstream,
+    "-map", "0:v:0", "-map", "0:a:0?", ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-af", "aresample=async=1000",
+    "-avoid_negative_ts", "make_zero", "-max_muxing_queue_size", "4096",
+    "-f", "hls", "-hls_time", "4", "-hls_init_time", "1", "-hls_list_size", "0", "-hls_playlist_type", "event",
     "-hls_segment_type", "fmp4", "-hls_flags", "temp_file", "-hls_fmp4_init_filename", "init.mp4",
     "-hls_segment_filename", join(dir, "seg%05d.m4s"), join(dir, "index.m3u8")];
   const proc = spawn(FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"] });
@@ -87,7 +89,7 @@ async function startSession(key, upstream, start, retry = 0) {
     if (code && !retry && SESS.get(key) === sess && !existsSync(join(dir, "index.m3u8"))) {
       console.log(`  Conversion ${key} refusée par le fournisseur, nouvel essai dans 4 s…`);
       SESS.delete(key);
-      return setTimeout(() => { startSession(key, upstream, start, 1).then((s2) => { sess.next = s2; }); }, 4000);
+      return setTimeout(() => { startSession(key, upstream, start, 1, hint).then((s2) => { sess.next = s2; }); }, 4000);
     }
     if (code) console.log(`  Conversion ${key} arrêtée (code ${code}) ${sess.log || ""}`); sess.done = true; if (code) sess.failed = !existsSync(join(dir, "index.m3u8")); });
   return sess;
@@ -101,7 +103,7 @@ function stopSession(key) {
 }
 setInterval(() => { for (const [k, s] of SESS) if (Date.now() - s.last > 120000) stopSession(k); }, 30000).unref();
 
-async function handleVod(req, res, path) {
+async function handleVod(req, res, path, query) {
   const m = path.match(/^\/vod\/(movie|series)\/(\d+)\.([a-z0-9]{2,5})\/(\d+)\/([\w.]+)$/i);
   if (!m || !FFMPEG) { res.writeHead(404); return res.end(); }
   const [, type, id, ext, start, file] = m;
@@ -110,7 +112,7 @@ async function handleVod(req, res, path) {
   if (!sess) {
     if (file !== "index.m3u8") { res.writeHead(404); return res.end(); }
     const host = String(env.XTREAM_HOST).replace(/\/+$/, "");
-    sess = await startSession(key, `${host}/${type}/${encodeURIComponent(env.XTREAM_USER)}/${encodeURIComponent(env.XTREAM_PASS)}/${id}.${ext}`, Number(start));
+    sess = await startSession(key, `${host}/${type}/${encodeURIComponent(env.XTREAM_USER)}/${encodeURIComponent(env.XTREAM_PASS)}/${id}.${ext}`, Number(start), 0, { vc: query.get("vc"), direct: query.get("d") === "1" });
   }
   sess.last = Date.now();
   const fp = join(sess.dir, file);
@@ -147,7 +149,7 @@ http.createServer(async (req, res) => {
       const probeReq = new Request("http://x/", { headers });
       if (!(await authorized(probeReq, env))) { res.writeHead(401); return res.end(); }
       if (path === "/caps") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ remux: !!FFMPEG })); }
-      return await handleVod(req, res, path);
+      return await handleVod(req, res, path, new URL(req.url, "http://x").searchParams);
     }
     const ac = new AbortController();
     res.on("close", () => ac.abort());

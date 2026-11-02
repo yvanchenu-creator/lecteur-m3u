@@ -287,7 +287,7 @@ async function openSeries(it) {
     for (const s of seasons) {
       html += `<h4 style="margin:14px 0 4px">Saison ${esc(s)}</h4>`;
       for (const e of arr(eps[s])) {
-        const ep = { key: "ep:" + e.id, type: "series", id: e.id, ext: e.container_extension || "mp4", title: `${it.title} · S${s}E${e.episode_num} ${e.title && !String(e.title).startsWith(it.title) ? "· " + e.title : ""}`, img: (e.info && e.info.movie_image) || it.img, dur: +(e.info && e.info.duration_secs) || 0 };
+        const ep = { vc: e.info && e.info.video && e.info.video.codec_name, key: "ep:" + e.id, type: "series", id: e.id, ext: e.container_extension || "mp4", title: `${it.title} · S${s}E${e.episode_num} ${e.title && !String(e.title).startsWith(it.title) ? "· " + e.title : ""}`, img: (e.info && e.info.movie_image) || it.img, dur: +(e.info && e.info.duration_secs) || 0 };
         REG.set(ep.key, ep);
         const p = Store.pos(ep.key);
         const pp = p && p.d ? Math.round((p.t / p.d) * 100) + " %" : "";
@@ -337,12 +337,14 @@ function ask(html, buttons) {
     box.querySelector("[data-ans]").focus();
   });
 }
+const APPLE = /Apple/.test(navigator.vendor || "") && !/Chrome|CriOS|Android/.test(navigator.userAgent) || /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 async function play(it, forceRemux) {
+  if (!forceRemux && APPLE && it.type !== "live" && !NATIVE.test(it.ext || "") && !(it.key || "").startsWith("series:") && (await caps()).remux) forceRemux = "apple";
   if (it.type === "series" && it.key.startsWith("series:")) return openSeries(it);
   // Depuis la liste d'épisodes : la fiche cède sa place au lecteur dans l'historique
   if (history.state && history.state.layer === "sheet") { $("#sheet").classList.remove("on"); history.replaceState({ layer: "player-pending" }, ""); }
   else closeSheet();
-  if (!forceRemux) {
+  if (forceRemux !== "direct-failed") {
     let w = await watch("start", { title: it.title });
     if (w.busy) {
       const a = await ask(`<h3>${esc(w.busy.name)} regarde déjà</h3><p>« ${esc(w.busy.title || "une vidéo")} ». Votre abonnement ne permet qu'une lecture à la fois.</p>`, ["Prendre la main", "Annuler"]);
@@ -366,13 +368,13 @@ async function play(it, forceRemux) {
   let url = streamUrl(it);
   if (it.type !== "live") {
     if (!me.dur && p && p.d) me.dur = p.d;
-    if (!me.dur && it.type === "movie") {
-      try { const vi = await api("get_vod_info", { vod_id: it.id }); me.dur = +(vi && vi.info && vi.info.duration_secs) || 0; } catch {}
+    if ((!me.dur || !me.vc) && it.type === "movie") {
+      try { const vi = await api("get_vod_info", { vod_id: it.id }); me.dur = me.dur || +(vi && vi.info && vi.info.duration_secs) || 0; me.vc = vi && vi.info && vi.info.video && vi.info.video.codec_name; } catch {}
     }
     // Lecture directe d'abord (Chrome lit les mkv) ; conversion par le Mac seulement si le navigateur échoue (Safari)
     if (forceRemux && (await caps()).remux) {
       me.offset = Math.floor(resumeAt);
-      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}/index.m3u8`;
+      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}/index.m3u8?d=${forceRemux === "direct-failed" ? 1 : 0}&vc=${encodeURIComponent(me.vc || "")}`;
       $("#pmsg").textContent = "Préparation de la vidéo…";
     }
   }
@@ -388,7 +390,7 @@ async function play(it, forceRemux) {
   video.onloadedmetadata = () => { if (!me.offset && resumeAt) video.currentTime = resumeAt; };
   video.onplaying = () => { if ($("#pmsg").textContent.startsWith("Préparation")) $("#pmsg").textContent = ""; };
   video.onerror = async () => {
-    if (!forceRemux && !me.offset && cur === me && it.type !== "live" && !NATIVE.test(it.ext || "") && (await caps()).remux) return play(it, true);
+    if (!forceRemux && !me.offset && cur === me && it.type !== "live" && !NATIVE.test(it.ext || "") && (await caps()).remux) return play(it, "direct-failed");
     $("#pmsg").textContent = !NATIVE.test(it.ext || "") && it.type !== "live" ? "Ce format vidéo (" + it.ext + ") n'est pas lisible ici" + (forceRemux ? " (conversion échouée, code " + ((video.error && video.error.code) || "?") + ")." : CAPS && CAPS.remux === false ? " (outil de conversion pas encore prêt sur le Mac)." : ".") : "Lecture impossible pour le moment.";
   };
   video.play().catch(() => {});
