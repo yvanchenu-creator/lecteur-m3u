@@ -166,12 +166,13 @@ http.createServer(async (req, res) => {
     const h = {};
     r.headers.forEach((v, k) => { h[k] = v; });
     // Journal : les erreurs toujours, chaque vidéo demandée (pour le dépannage)
-    if (r.status >= 400 && r.status !== 401) {
+    if (r.status >= 400 && (r.status !== 401 || path !== "/api")) {
       let detail = "";
       try { detail = (await r.clone().text()).slice(0, 160); } catch {}
       console.log(`  ${new Date().toLocaleTimeString()} ${req.method} ${hide(decodeURIComponent(path === "/seg" ? "/seg " + (new URL(req.url, "http://x").searchParams.get("u") || "").slice(0, 120) : path))} -> ${r.status} ${hide(detail)}`);
-    } else if (/^\/live\/|^\/(movie|series)\//.test(path)) {
-      console.log(`  ${new Date().toLocaleTimeString()} ${req.method} ${path} -> ${r.status}`);
+    } else if (/^\/live\/|^\/(movie|series)\/|^\/seg$/.test(path)) {
+      const seg = path === "/seg" ? " " + (new URL(req.url, "http://x").searchParams.get("u") || "").split("/").pop().slice(0, 40) : "";
+      console.log(`  ${new Date().toLocaleTimeString()} ${req.method} ${path}${seg} -> ${r.status}${req.headers.range ? " " + req.headers.range : ""} [${String(req.headers["user-agent"] || "").slice(0, 40)}]`);
     }
     res.writeHead(r.status, h);
     if (r.body) {
