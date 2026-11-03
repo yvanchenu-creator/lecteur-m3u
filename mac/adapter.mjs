@@ -34,13 +34,17 @@ function findFfmpeg() {
   const cands = [env.FFMPEG, "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"];
   try { cands.push(createRequire(join(DIR, "x.js"))("ffmpeg-static")); } catch {}
   for (const c of cands) if (c && existsSync(c)) return c;
-  try { return execFileSync("/bin/sh", ["-c", "command -v ffmpeg"]).toString().trim() || null; } catch { return null; }
+  try {
+    if (process.platform === "win32") return execFileSync("where", ["ffmpeg"]).toString().split(/\r?\n/)[0].trim() || null;
+    return execFileSync("/bin/sh", ["-c", "command -v ffmpeg"]).toString().trim() || null;
+  } catch { return null; }
 }
 FFMPEG = findFfmpeg();
 if (!FFMPEG) {
   console.log("  Installation de l'outil de conversion vidéo (une seule fois, ~1 minute)…");
-  const npm = join(dirname(process.execPath), "npm");
-  const p = spawn(existsSync(npm) ? npm : "npm", ["install", "--prefix", DIR, "--no-audit", "--no-fund", "ffmpeg-static"], { stdio: "ignore" });
+  const win = process.platform === "win32";
+  const npm = join(dirname(process.execPath), win ? "npm.cmd" : "npm");
+  const p = spawn(existsSync(npm) ? `"${npm}"` : "npm", ["install", "--prefix", `"${DIR}"`, "--no-audit", "--no-fund", "ffmpeg-static"], { stdio: "ignore", shell: true });
   p.on("exit", () => { FFMPEG = findFfmpeg(); console.log(FFMPEG ? "  Outil de conversion vidéo prêt." : "  Échec de l'installation de l'outil de conversion (les .mkv ne marcheront pas dans Safari)."); });
   p.on("error", () => {});
 }
