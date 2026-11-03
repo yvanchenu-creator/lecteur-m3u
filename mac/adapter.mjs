@@ -54,7 +54,7 @@ if (!FFMPEG) {
 if (process.platform === "darwin") { try { spawn("caffeinate", ["-i", "-w", String(process.pid)], { stdio: "ignore" }).unref(); } catch {} }
 
 const TMP = join(os.tmpdir(), "lecteur-m3u");
-rmSync(TMP, { recursive: true, force: true });
+try { rmSync(TMP, { recursive: true, force: true }); } catch {}
 const SESS = new Map(); // clé -> { dir, proc, last, done }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -123,7 +123,7 @@ const hide = (t) => t.split(String(env.XTREAM_PASS)).join("***").split(String(en
 async function startSession(key, upstream, start, retry = 0, hint = {}) {
   // Une seule connexion autorisée par le fournisseur : on arrête toute autre conversion
   for (const k of [...SESS.keys()]) if (k !== key) stopSession(k);
-  const dir = join(TMP, key.replace(/[^\w.-]/g, "_"));
+  const dir = join(TMP, key.replace(/[^\w.-]/g, "_") + "-" + Date.now().toString(36)); // dossier neuf : sous Windows l'ancien peut rester verrouillé un instant
   mkdirSync(dir, { recursive: true });
   const up = relayOpen(upstream);
   upstream = `http://127.0.0.1:${port}/_up/${up}`;
@@ -162,7 +162,9 @@ function stopSession(key) {
   SESS.delete(key);
   try { s.proc && s.proc.kill("SIGKILL"); } catch {}
   relayClose(s.up);
-  rmSync(s.dir, { recursive: true, force: true });
+  // Sous Windows, les fichiers restent verrouillés tant que ffmpeg n'est pas complètement arrêté : on efface après
+  const rm = () => { try { rmSync(s.dir, { recursive: true, force: true }); } catch {} };
+  if (s.proc && s.proc.exitCode === null) { s.proc.once("close", () => setTimeout(rm, 500)); setTimeout(rm, 5000); } else rm();
 }
 setInterval(() => { for (const [k, s] of SESS) if (Date.now() - s.last > 120000) stopSession(k); }, 30000).unref();
 
@@ -172,6 +174,8 @@ async function handleVod(req, res, path, query) {
   const [, type, id, ext, start, file] = m;
   const key = `${type}-${id}-${start}`;
   let sess = SESS.get(key);
+  // Nouveau lancement du même film (plus de demande depuis 15 s) : on repart d'une conversion neuve
+  if (sess && file === "index.m3u8" && Date.now() - sess.last > 15000) { console.log(`  Nouveau lancement de ${key} : conversion relancée`); stopSession(key); sess = null; }
   if (!sess) {
     if (file !== "index.m3u8") { res.writeHead(404); return res.end(); }
     const host = String(env.XTREAM_HOST).replace(/\/+$/, "");
@@ -254,6 +258,7 @@ http.createServer(async (req, res) => {
       body.on("error", () => res.destroy()).pipe(res);
     } else res.end();
   } catch (e) {
+    console.log(`  Erreur sur ${hide(req.url.split("?")[0])} : ${hide(String(e && e.message || e))}`);
     if (!res.headersSent) { res.writeHead(500); res.end(String(e)); } else res.destroy();
   }
 }).listen(port, "0.0.0.0", () => {
