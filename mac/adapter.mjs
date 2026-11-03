@@ -119,8 +119,8 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
     "-avoid_negative_ts", "make_zero", "-max_muxing_queue_size", "4096",
     "-f", "hls", "-hls_time", "4", "-hls_init_time", "1", "-hls_list_size", "0", "-hls_playlist_type", "event",
     "-hls_segment_type", "fmp4", "-hls_flags", "temp_file", "-hls_fmp4_init_filename", "init.mp4",
-    "-hls_segment_filename", join(dir, "seg%05d.m4s"), join(dir, "index.m3u8")];
-  const proc = spawn(FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"] });
+    "-hls_segment_filename", "seg%05d.m4s", "index.m3u8"]; // chemins relatifs : sous Windows, ffmpeg plaçait init.mp4 ailleurs
+  const proc = spawn(FFMPEG, args, { cwd: dir, stdio: ["ignore", "ignore", "pipe"] });
   sess.proc = proc;
   proc.stderr.on("data", (d) => { sess.log = hide(String(d)).slice(0, 300); });
   console.log(`  Conversion de ${key} (vidéo ${vcodec || "inconnue"}) à partir de ${start}s`);
