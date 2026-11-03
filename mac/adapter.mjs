@@ -100,6 +100,7 @@ async function handleUp(req, res, id) {
 
 // Listes du fournisseur gardées en mémoire : l'app s'ouvre tout de suite, les listes sont rafraîchies en arrière-plan
 const LISTS = new Set(["get_live_categories", "get_live_streams", "get_vod_categories", "get_vod_streams", "get_series_categories", "get_series"]);
+const KEEP = ["stream_id", "series_id", "name", "stream_icon", "cover", "category_id", "category_name", "container_extension", "added", "last_modified"];
 const APIC = new Map(); // requête -> { at, raw, gz, loading }
 async function apiLoad(key, headers) {
   const c = APIC.get(key) || {};
@@ -108,7 +109,14 @@ async function apiLoad(key, headers) {
     try {
       const r = await WORKER.fetch(new Request("http://localhost" + key, { headers }), env);
       if (r.status !== 200) return c.raw ? c : { status: r.status, body: Buffer.from(await r.arrayBuffer()) };
-      const raw = Buffer.from(await r.arrayBuffer());
+      let raw = Buffer.from(await r.arrayBuffer());
+      // On ne garde que les champs utilisés par l'app : liste bien plus légère à transmettre et à lire (TV)
+      try {
+        const data = JSON.parse(raw.toString("utf8"));
+        const pick = (o) => { if (!o || typeof o !== "object") return o; const x = {}; for (const k of KEEP) if (o[k] !== undefined && o[k] !== null && o[k] !== "") x[k] = o[k]; return x; };
+        const slim = Array.isArray(data) ? data.map(pick) : data && typeof data === "object" ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, pick(v)])) : data;
+        raw = Buffer.from(JSON.stringify(slim));
+      } catch {}
       Object.assign(c, { at: Date.now(), raw, gz: gzipSync(raw), headers });
       APIC.set(key, c);
       return c;
@@ -117,6 +125,14 @@ async function apiLoad(key, headers) {
   APIC.set(key, c);
   return c.loading;
 }
+// Préchargement au démarrage du serveur : la première ouverture de l'app est rapide elle aussi
+setTimeout(async () => {
+  try {
+    const headers = { cookie: `${COOKIE}=${encodeURIComponent(await pinHash(env))}` };
+    for (const a of LISTS) await apiLoad("/api?action=" + a, headers).catch(() => {});
+    console.log("  Listes de chaînes et de films prêtes.");
+  } catch {}
+}, 1000);
 setInterval(() => { for (const [k, c] of APIC) if (c.raw && Date.now() - c.at > 25 * 60000) apiLoad(k, c.headers).catch(() => {}); }, 5 * 60000).unref();
 
 const hide = (t) => t.split(String(env.XTREAM_PASS)).join("***").split(String(env.XTREAM_USER)).join("***");
