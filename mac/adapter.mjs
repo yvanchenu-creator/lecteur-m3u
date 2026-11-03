@@ -129,7 +129,7 @@ async function handleVod(req, res, path, query) {
     if (sess.done && !existsSync(fp)) break;
     await wait(200);
   }
-  if (!existsSync(fp)) { res.writeHead(sess.failed ? 502 : 404); return res.end(sess.log || ""); }
+  if (!existsSync(fp)) { console.log(`  ${new Date().toLocaleTimeString()} ${file} pas prêt pour ${key} ${sess.log || "(ffmpeg ne dit rien)"}`); res.writeHead(sess.failed ? 502 : 404); return res.end(sess.log || ""); }
   if (file === "index.m3u8") {
     res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl", "cache-control": "no-store" });
     return res.end(readFileSync(fp));
@@ -165,6 +165,14 @@ http.createServer(async (req, res) => {
     }), env);
     const h = {};
     r.headers.forEach((v, k) => { h[k] = v; });
+    // Journal : les erreurs toujours, chaque vidéo demandée (pour le dépannage)
+    if (r.status >= 400 && r.status !== 401) {
+      let detail = "";
+      try { detail = (await r.clone().text()).slice(0, 160); } catch {}
+      console.log(`  ${new Date().toLocaleTimeString()} ${req.method} ${hide(decodeURIComponent(path === "/seg" ? "/seg " + (new URL(req.url, "http://x").searchParams.get("u") || "").slice(0, 120) : path))} -> ${r.status} ${hide(detail)}`);
+    } else if (/^\/live\/|^\/(movie|series)\//.test(path)) {
+      console.log(`  ${new Date().toLocaleTimeString()} ${req.method} ${path} -> ${r.status}`);
+    }
     res.writeHead(r.status, h);
     if (r.body) {
       const body = Readable.fromWeb(r.body);
