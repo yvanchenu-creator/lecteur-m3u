@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
 if (!globalThis.crypto) globalThis.crypto = webcrypto; // Node 18 (Ubuntu 24.04)
 import { Readable } from "node:stream";
+import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -97,6 +98,27 @@ async function handleUp(req, res, id) {
   Readable.fromWeb(r.body).on("error", () => res.destroy()).pipe(res);
 }
 
+// Listes du fournisseur gardées en mémoire : l'app s'ouvre tout de suite, les listes sont rafraîchies en arrière-plan
+const LISTS = new Set(["get_live_categories", "get_live_streams", "get_vod_categories", "get_vod_streams", "get_series_categories", "get_series"]);
+const APIC = new Map(); // requête -> { at, raw, gz, loading }
+async function apiLoad(key, headers) {
+  const c = APIC.get(key) || {};
+  if (c.loading) return c.loading;
+  c.loading = (async () => {
+    try {
+      const r = await WORKER.fetch(new Request("http://localhost" + key, { headers }), env);
+      if (r.status !== 200) return c.raw ? c : { status: r.status, body: Buffer.from(await r.arrayBuffer()) };
+      const raw = Buffer.from(await r.arrayBuffer());
+      Object.assign(c, { at: Date.now(), raw, gz: gzipSync(raw), headers });
+      APIC.set(key, c);
+      return c;
+    } finally { c.loading = null; }
+  })();
+  APIC.set(key, c);
+  return c.loading;
+}
+setInterval(() => { for (const [k, c] of APIC) if (c.raw && Date.now() - c.at > 25 * 60000) apiLoad(k, c.headers).catch(() => {}); }, 5 * 60000).unref();
+
 const hide = (t) => t.split(String(env.XTREAM_PASS)).join("***").split(String(env.XTREAM_USER)).join("***");
 async function startSession(key, upstream, start, retry = 0, hint = {}) {
   // Une seule connexion autorisée par le fournisseur : on arrête toute autre conversion
@@ -105,7 +127,7 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
   mkdirSync(dir, { recursive: true });
   const up = relayOpen(upstream);
   upstream = `http://127.0.0.1:${port}/_up/${up}`;
-  const sess = { dir, proc: null, last: Date.now(), done: false, failed: false, up };
+  const sess = { dir, proc: null, last: Date.now(), t0: Date.now(), done: false, failed: false, up };
   SESS.set(key, sess);
   if (!retry && hint.direct) await wait(1500); // laisse le temps à la tentative directe de libérer la connexion
   // Le codec annoncé par le fournisseur évite une analyse préalable (une connexion et plusieurs secondes de gagnées)
@@ -165,6 +187,7 @@ async function handleVod(req, res, path, query) {
   }
   if (!existsSync(fp)) { console.log(`  ${new Date().toLocaleTimeString()} ${file} pas prêt pour ${key} ${sess.log || "(ffmpeg ne dit rien)"}`); res.writeHead(sess.failed ? 502 : 404); return res.end(sess.log || ""); }
   if (file === "index.m3u8") {
+    if (!sess.ready) { sess.ready = true; console.log(`  Film prêt en ${((Date.now() - sess.t0) / 1000).toFixed(1)} s`); }
     res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl", "cache-control": "no-store" });
     return res.end(readFileSync(fp));
   }
@@ -196,6 +219,16 @@ http.createServer(async (req, res) => {
       if (!(await authorized(probeReq, env))) { res.writeHead(401); return res.end(); }
       if (path === "/caps") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ remux: !!FFMPEG })); }
       return await handleVod(req, res, path, new URL(req.url, "http://x").searchParams);
+    }
+    if (path === "/api" && LISTS.has(new URL(req.url, "http://x").searchParams.get("action") || "")) {
+      if (!(await authorized(new Request("http://x/", { headers }), env))) { res.writeHead(401); return res.end(); }
+      let c = APIC.get(req.url);
+      if (c && c.raw) { if (Date.now() - c.at > 2 * 60000) apiLoad(req.url, headers).catch(() => {}); }
+      else c = await apiLoad(req.url, headers);
+      if (!c.raw) { res.writeHead(c.status || 502, { "content-type": "application/json" }); return res.end(c.body || ""); }
+      const gz = /gzip/.test(req.headers["accept-encoding"] || "");
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...(gz ? { "content-encoding": "gzip", "content-length": c.gz.length } : { "content-length": c.raw.length }) });
+      return res.end(gz ? c.gz : c.raw);
     }
     const ac = new AbortController();
     res.on("close", () => ac.abort());
