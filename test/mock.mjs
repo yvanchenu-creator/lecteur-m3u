@@ -30,7 +30,15 @@ http.createServer((req, res) => {
   if (m) { res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl" }); return res.end("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nseg1.ts\n#EXTINF:4,\nhttp://127.0.0.1:9100/hls/" + m[1] + "/seg2.ts\n"); }
   if (u.pathname.startsWith("/hls/")) { res.writeHead(200, { "content-type": "video/mp2t" }); return res.end(Buffer.alloc(188 * 10, 0x47)); }
   if (u.pathname === "/movie/u/p/600.mkv") {
-    const buf = fs.readFileSync(new URL("./film.mkv", import.meta.url));
+    const buf0 = fs.readFileSync(new URL("./film.mkv", import.meta.url));
+    // Comme le vrai fournisseur : une seule connexion à la fois, débit limité
+    if (globalThis.ACTIVE) { console.log("mock: 461 (connexion déjà ouverte)"); res.writeHead(461); return res.end(); }
+    globalThis.ACTIVE = true; res.on("close", () => { globalThis.ACTIVE = false; });
+    const slow = (b) => { let i = 0; const t = setInterval(() => { if (res.destroyed) return clearInterval(t); res.write(b.subarray(i, i += 8192)); if (i >= b.length) { clearInterval(t); res.end(); } }, 50); };
+    const buf = buf0;
+    const r0 = req.headers.range && req.headers.range.match(/bytes=(\d+)-(\d*)/);
+    if (r0) { const a = +r0[1], b = r0[2] ? +r0[2] : buf.length - 1; res.writeHead(206, { "content-type": "video/x-matroska", "accept-ranges": "bytes", "content-range": `bytes ${a}-${b}/${buf.length}`, "content-length": b - a + 1 }); return slow(buf.subarray(a, b + 1)); }
+    res.writeHead(200, { "content-type": "video/x-matroska", "accept-ranges": "bytes", "content-length": buf.length }); return slow(buf);
     const r = req.headers.range && req.headers.range.match(/bytes=(\d+)-(\d*)/);
     if (r) { const a = +r[1], b = r[2] ? +r[2] : buf.length - 1; res.writeHead(206, { "content-type": "video/x-matroska", "accept-ranges": "bytes", "content-range": `bytes ${a}-${b}/${buf.length}`, "content-length": b - a + 1 }); return res.end(buf.subarray(a, b + 1)); }
     res.writeHead(200, { "content-type": "video/x-matroska", "accept-ranges": "bytes", "content-length": buf.length }); return res.end(buf);

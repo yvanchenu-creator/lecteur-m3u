@@ -67,13 +67,45 @@ function probe(url) {
   });
 }
 
+// Relais local : ffmpeg ne parle jamais directement au fournisseur, qui n'autorise qu'une connexion.
+// Quand ffmpeg saute dans le film (nouvelle requête), l'ancienne connexion est coupée avant d'ouvrir la suivante.
+const UPS = new Map(); // id -> { url, ac }
+const UPS_ORIG = new Map();
+let upSeq = 0;
+function relayOpen(upstream) { const id = String(++upSeq); UPS.set(id, { url: upstream, ac: null }); UPS_ORIG.set(id, upstream); if (UPS_ORIG.size > 50) UPS_ORIG.delete(UPS_ORIG.keys().next().value); return id; }
+function relayClose(id) { const u = UPS.get(id); if (!u) return; UPS.delete(id); try { u.ac && u.ac.abort(); } catch {} }
+async function handleUp(req, res, id) {
+  const u = UPS.get(id);
+  if (!u) { res.writeHead(404); return res.end(); }
+  if (u.ac) u.ac.abort();
+  const ac = new AbortController(); u.ac = ac;
+  res.on("close", () => { ac.abort(); if (u.ac === ac) u.ac = null; });
+  const headers = { "user-agent": UA };
+  if (req.headers.range) headers.range = req.headers.range;
+  let r = null;
+  for (let i = 0; i < 8 && !ac.signal.aborted; i++) {
+    try { r = await fetch(u.url, { headers, signal: ac.signal, redirect: "follow" }); } catch { r = null; }
+    if (r && r.status < 400) break;
+    if (r) { try { await r.body?.cancel(); } catch {} }
+    await wait(1000); // le fournisseur met parfois un instant à libérer la connexion précédente
+  }
+  if (ac.signal.aborted) return res.destroy();
+  if (!r || r.status >= 400) { console.log(`  Fournisseur : film refusé (code ${r ? r.status : "aucune réponse"})`); res.writeHead(r ? r.status : 502); return res.end(); }
+  const h = {};
+  for (const k of ["content-type", "content-length", "content-range", "accept-ranges"]) { const v = r.headers.get(k); if (v) h[k] = v; }
+  res.writeHead(r.status, h);
+  Readable.fromWeb(r.body).on("error", () => res.destroy()).pipe(res);
+}
+
 const hide = (t) => t.split(String(env.XTREAM_PASS)).join("***").split(String(env.XTREAM_USER)).join("***");
 async function startSession(key, upstream, start, retry = 0, hint = {}) {
   // Une seule connexion autorisée par le fournisseur : on arrête toute autre conversion
   for (const k of [...SESS.keys()]) if (k !== key) stopSession(k);
   const dir = join(TMP, key.replace(/[^\w.-]/g, "_"));
   mkdirSync(dir, { recursive: true });
-  const sess = { dir, proc: null, last: Date.now(), done: false, failed: false };
+  const up = relayOpen(upstream);
+  upstream = `http://127.0.0.1:${port}/_up/${up}`;
+  const sess = { dir, proc: null, last: Date.now(), done: false, failed: false, up };
   SESS.set(key, sess);
   if (!retry && hint.direct) await wait(1500); // laisse le temps à la tentative directe de libérer la connexion
   // Le codec annoncé par le fournisseur évite une analyse préalable (une connexion et plusieurs secondes de gagnées)
@@ -96,7 +128,8 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
     if (code && !retry && SESS.get(key) === sess && !existsSync(join(dir, "index.m3u8"))) {
       console.log(`  Conversion ${key} refusée par le fournisseur, nouvel essai dans 4 s…`);
       SESS.delete(key);
-      return setTimeout(() => { startSession(key, upstream, start, 1, hint).then((s2) => { sess.next = s2; }); }, 4000);
+      relayClose(up);
+      return setTimeout(() => { startSession(key, UPS_ORIG.get(up) || upstream, start, 1, hint).then((s2) => { sess.next = s2; }); }, 4000);
     }
     if (code) console.log(`  Conversion ${key} arrêtée (code ${code}) ${sess.log || ""}`); sess.done = true; if (code) sess.failed = !existsSync(join(dir, "index.m3u8")); });
   return sess;
@@ -106,6 +139,7 @@ function stopSession(key) {
   if (!s) return;
   SESS.delete(key);
   try { s.proc && s.proc.kill("SIGKILL"); } catch {}
+  relayClose(s.up);
   rmSync(s.dir, { recursive: true, force: true });
 }
 setInterval(() => { for (const [k, s] of SESS) if (Date.now() - s.last > 120000) stopSession(k); }, 30000).unref();
@@ -145,6 +179,11 @@ http.createServer(async (req, res) => {
     const headers = {};
     for (const [k, v] of Object.entries(req.headers)) headers[k] = Array.isArray(v) ? v.join(", ") : v;
     const path = req.url.split("?")[0];
+    if (path.startsWith("/_up/")) {
+      const ra = req.socket.remoteAddress || "";
+      if (!/^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(ra)) { res.writeHead(403); return res.end(); }
+      return await handleUp(req, res, path.slice(5));
+    }
     // App TV à installer depuis la TV (app « Downloader ») : http://<adresse>:8080/tv.apk
     if (path === "/tv.apk") {
       const apk = ["lecteur-tv.apk", "app-debug.apk"].map((f) => join(DIR, f)).find((f) => existsSync(f));
