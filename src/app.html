@@ -5,31 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>Lecteur M3U</title>
 <style>
-:root{--bg:#0f1115;--panel:#181b22;--tile:#20242d;--line:#2b303b;--text:#eef0f4;--muted:#9aa1ae;--accent:#4f8cff;--live:#ff4d5e;--radius:12px}
+:root{--bg:#0b0b0d;--panel:#16161a;--tile:#1c1c22;--line:#2a2a30;--text:#f2f2f2;--muted:#a6a6ad;--accent:#f5b83d;--live:#e5484d;--radius:8px;--display:"Bebas Neue",Impact,sans-serif}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(15,17,21,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-header h1{font-size:18px;margin:0 8px 0 0;white-space:nowrap}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(11,11,13,.94);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)}
+header h1{font:400 30px/1 var(--display);letter-spacing:2px;color:var(--accent);margin:0 12px 0 0;white-space:nowrap}
 nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
-nav button{padding:7px 12px;border-radius:999px;color:var(--muted);white-space:nowrap}
-nav button.on{background:var(--tile);color:var(--text)}
+nav button{padding:8px 12px;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent;border-radius:4px 4px 0 0}
+nav button.on{color:#fff;font-weight:600;border-bottom-color:var(--accent)}
+nav button:focus-visible{outline:none;background:var(--tile);color:#fff}
 #search{margin-left:auto;min-width:0;width:180px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit}
 main{padding:8px 0 40px}
 .row{margin:18px 0}
-.row h2{font-size:17px;margin:0 16px 10px;display:flex;align-items:center;gap:8px}
+.row h2{font-size:18px;font-weight:600;margin:0 16px 10px;display:flex;align-items:center;gap:8px}
 .row h2 small{color:var(--muted);font-weight:400;font-size:13px}
-.strip{display:flex;gap:12px;overflow-x:auto;padding:4px 16px 10px;scroll-snap-type:x proximity;scrollbar-width:none}
+.strip{display:flex;gap:12px;overflow-x:auto;padding:4px 16px 10px;scroll-snap-type:x proximity;scroll-padding:0 16px;scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:4px 16px}
 .tile{position:relative;flex:0 0 auto;width:160px;text-align:left;background:var(--tile);border-radius:var(--radius);overflow:hidden;scroll-snap-align:start;outline:none;transition:transform .12s, box-shadow .12s}
 .grid .tile{width:auto}
-.tile:focus-visible,.tile:hover{transform:scale(1.04);box-shadow:0 0 0 3px var(--accent)}
+.tile:focus-visible,.tile:hover{transform:scale(1.05);box-shadow:0 0 0 3px var(--accent),0 10px 30px rgba(0,0,0,.6);z-index:1}
 .tile .art{aspect-ratio:16/10;background:#14171d center/contain no-repeat;display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--muted);padding:8px;text-align:center}
 .tile.poster .art{aspect-ratio:2/3;background-size:cover}
 .tile .meta{padding:8px 10px 10px}
@@ -37,18 +40,29 @@ main{padding:8px 0 40px}
 .tile .s{font-size:12px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tile .bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.12)}
 .tile .bar i{display:block;height:100%;background:var(--accent)}
-.tile .fav{position:absolute;top:6px;right:8px;color:#ffd24d;font-size:16px;text-shadow:0 1px 3px #000}
+.tile .fav{position:absolute;top:6px;right:8px;color:var(--accent);font-size:16px;text-shadow:0 1px 3px #000}
 .badge{position:absolute;top:6px;left:6px;background:var(--live);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:6px}
 .cats{display:flex;gap:8px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none}
 .cats::-webkit-scrollbar{display:none}
 .cats button{padding:6px 12px;border:1px solid var(--line);border-radius:999px;white-space:nowrap;color:var(--muted)}
-.cats button.on{border-color:var(--accent);color:var(--text)}
+.cats button.on{border-color:var(--accent);color:var(--text);background:rgba(245,184,61,.12)}
+.cats button:focus-visible{outline:none;border-color:#fff;color:#fff}
 .empty{color:var(--muted);padding:0 16px}
+.hero{position:relative;min-height:300px;display:flex;align-items:flex-end;padding:28px 16px 26px;margin-bottom:6px;background:#2a2018 right center/cover no-repeat;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 0%,rgba(11,11,13,.82) 40%,rgba(11,11,13,.25) 75%),linear-gradient(0deg,var(--bg) 0%,rgba(11,11,13,0) 45%)}
+.hero .in{position:relative;max-width:600px;display:flex;flex-direction:column;gap:10px}
+.hero .lbl{font-size:12px;letter-spacing:2px;font-weight:600;color:var(--accent)}
+.hero h2{margin:0;font:400 64px/.95 var(--display);letter-spacing:1px}
+.hero .pg{height:4px;width:300px;max-width:100%;background:rgba(255,255,255,.18);border-radius:2px}
+.hero .pg i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.hero .rest{font-size:14px;color:var(--muted)}
+.hero .acts{display:flex;gap:12px;margin-top:6px}
+.hero .btn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 #status{padding:40px 16px;text-align:center;color:var(--muted)}
 #login{max-width:340px;margin:12vh auto;padding:24px;background:var(--panel);border-radius:16px;text-align:center}
 #login input{width:100%;margin:14px 0;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:20px;text-align:center;letter-spacing:4px}
-.btn{padding:10px 18px;border-radius:10px;background:var(--accent);color:#fff;font-weight:600}
-.btn.ghost{background:var(--tile)}
+.btn{padding:12px 22px;border-radius:6px;background:var(--accent);color:#111;font-weight:700}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid #555}
 .btn:focus-visible{outline:3px solid #fff}
 .avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
 .avatar:focus-visible{outline:3px solid #fff;outline-offset:2px}
@@ -77,8 +91,8 @@ main{padding:8px 0 40px}
 .ep:hover,.ep:focus-visible{background:var(--tile);outline:none}
 .ep .n{color:var(--muted);width:32px;flex:none}
 .ep .pp{margin-left:auto;font-size:12px;color:var(--accent)}
-@media (max-width:600px){header{flex-wrap:wrap}#search{width:100%;order:3;margin:0}.tile{width:132px}.grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
-@media (min-width:1200px){.tile{width:200px}}
+@media (max-width:600px){.hero{min-height:240px}.hero h2{font-size:44px}header{flex-wrap:wrap}header nav{order:2;width:100%}#pbtn{margin-left:auto}#search{width:100%;order:3;margin:0}.tile{width:132px}.grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}}
+@media (min-width:1200px){.tile{width:200px}.hero{min-height:380px;padding:40px 56px 34px}.row h2{margin-left:56px}.strip,.grid,.cats{padding-left:56px;padding-right:56px}.strip{scroll-padding:0 56px}header{padding-left:56px;padding-right:56px}}
 </style>
 </head>
 <body>
@@ -198,6 +212,19 @@ function row(title, items, opts = {}) {
   reg(items);
   return `<section class="row"><h2>${title}${opts.small ? ` <small>${opts.small}</small>` : ""}</h2><div class="strip">${items.map((i) => tile(i, opts)).join("")}</div></section>`;
 }
+// Grand bandeau « Reprendre la lecture » en haut de l'accueil
+function hero(p) {
+  if (!p) return "";
+  reg([p]);
+  const left = Math.max(0, Math.round((p.d - p.t) / 60));
+  const src = img(p.img);
+  return `<section class="hero"${src ? ` style="background-image:url('${esc(src)}')"` : ""}><div class="in">
+    <span class="lbl">REPRENDRE LA LECTURE</span><h2>${esc(p.title)}</h2>
+    <div class="pg"><i style="width:${Math.min(100, (p.t / p.d) * 100)}%"></i></div>
+    <span class="rest">Il reste ${left >= 60 ? Math.floor(left / 60) + " h " + String(left % 60).padStart(2, "0") : left + " min"}</span>
+    <div class="acts"><button class="btn" data-key="${esc(p.key)}">Reprendre</button><button class="btn ghost" data-restart="${esc(p.key)}">Du début</button></div>
+  </div></section>`;
+}
 function grid(items, opts = {}) {
   reg(items);
   if (!items.length) return '<p class="empty">Aucun résultat.</p>';
@@ -206,7 +233,7 @@ function grid(items, opts = {}) {
 
 function shell(body) {
   const tabs = [["home", "Accueil"], ["live", "TV en direct"], ["movie", "Films"], ["series", "Séries"], ["fav", "Favoris"]];
-  return `<header><h1>▶︎ Lecteur</h1><nav>${tabs.map(([k, l]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${l}</button>`).join("")}</nav>
+  return `<header><h1>LECTEUR</h1><nav>${tabs.map(([k, l]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${l}</button>`).join("")}</nav>
     <input id="search" type="search" placeholder="Rechercher…" value="${esc(S.q)}">${avatar(PROFILES[Store.pid], "pbtn", "Changer de profil")}</header><main>${body}</main>`;
 }
 
@@ -228,7 +255,7 @@ function render() {
     const liveNow = (favLive.length ? favLive : D.live.slice(0, 20).map(liveItem)).slice(0, 20);
     const newMovies = D.vod.map(vodItem).sort((a, b) => b.added - a.added).slice(0, 30);
     const newSeries = D.series.map(seriesItem).sort((a, b) => b.added - a.added).slice(0, 30);
-    body = row("Reprendre", resume)
+    body = hero(resume[0]) + row("Reprendre", resume.slice(1))
       + row("En direct maintenant", liveNow, { wide: true, small: favLive.length ? "vos chaînes favorites" : "" })
       + row("Favoris", favs.filter((f) => f.type !== "live"), { emptyText: favs.length ? "" : "Appuyez sur ☆ pendant la lecture pour ajouter un favori." })
       + row("Nouveaux films", newMovies)
@@ -261,7 +288,7 @@ let LAST = null;
 document.addEventListener("focusin", (e) => {
   const el = e.target;
   if (!$("#app").contains(el)) return;
-  for (const a of ["data-key", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
+  for (const a of ["data-key", "data-restart", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
   LAST = el.id ? ["id", el.id] : null;
 });
 function restoreFocus() {
@@ -474,6 +501,8 @@ document.addEventListener("click", (e) => {
   if (t) { S.tab = t.dataset.tab; S.cat = null; S.q = ""; render(); window.scrollTo(0, 0); return; }
   const c = e.target.closest("[data-cat]");
   if (c) { S.cat = c.dataset.cat; render(); return; }
+  const rs = e.target.closest("[data-restart]");
+  if (rs && REG.has(rs.dataset.restart)) { const it = REG.get(rs.dataset.restart); const p = Store.pos(it.key); if (p) Store.savePos(it, 0, p.d); play(it); return; }
   const k = e.target.closest("[data-key]");
   if (k && REG.has(k.dataset.key)) play(REG.get(k.dataset.key));
   if (e.target.id === "sheet") closeSheet();
