@@ -151,16 +151,23 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
   const v = vcodec === "h264" ? ["-c:v", "copy"]
     : vcodec === "hevc" ? ["-c:v", "copy", "-tag:v", "hvc1"]
     : ["-c:v", "h264_videotoolbox", "-b:v", "6M"];
-  const args = ["-hide_banner", "-nostdin", "-loglevel", "error",
+  const args = ["-hide_banner", "-nostdin", "-nostats", "-loglevel", "info",
     "-user_agent", UA, "-reconnect", "1", "-reconnect_on_network_error", "1", "-reconnect_delay_max", "10", ...(start > 0 ? [...(v[1] === "copy" ? ["-noaccurate_seek"] : []), "-ss", String(start)] : []), "-i", upstream,
-    "-map", "0:v:0", "-map", "0:a:0?", ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2",
+    "-map", "0:v:0", "-map", `0:a:${hint.a || 0}?`, ...v, "-c:a", "aac", "-b:a", "192k", "-ac", "2",
     "-avoid_negative_ts", "make_zero", "-max_muxing_queue_size", "4096",
     "-f", "hls", "-hls_time", "4", "-hls_init_time", "1", "-hls_list_size", "0", "-hls_playlist_type", "event",
     "-hls_segment_type", "fmp4", "-hls_flags", "temp_file", "-hls_fmp4_init_filename", "init.mp4",
     "-hls_segment_filename", "seg%05d.m4s", "index.m3u8"]; // chemins relatifs : sous Windows, ffmpeg plaçait init.mp4 ailleurs
   const proc = spawn(FFMPEG, args, { cwd: dir, stdio: ["ignore", "ignore", "pipe"] });
   sess.proc = proc;
-  proc.stderr.on("data", (d) => { sess.log = hide(String(d)).slice(0, 300); });
+  // Le début de la sortie de ffmpeg décrit les pistes du film : on y lit les langues disponibles
+  let head = "";
+  proc.stderr.on("data", (d) => {
+    const t = String(d);
+    if (!sess.audio && head.length < 30000) { head += t; if (/Output #0|Stream mapping/.test(head)) sess.audio = audioTracks(head); }
+    const lines = t.split(/\r?\n/).filter((l) => l.trim() && !/Opening '|^\s|Input #|Output #|Stream mapping|Press \[q\]/.test(l));
+    if (lines.length) sess.log = hide(lines.join(" ")).slice(0, 300);
+  });
   console.log(`  Conversion de ${key} (vidéo ${vcodec || "inconnue"}) à partir de ${start}s`);
   proc.on("close", (code) => {
     if (code && !retry && SESS.get(key) === sess && !existsSync(join(dir, "index.m3u8"))) {
@@ -171,6 +178,30 @@ async function startSession(key, upstream, start, retry = 0, hint = {}) {
     }
     if (code) console.log(`  Conversion ${key} arrêtée (code ${code}) ${sess.log || ""}`); sess.done = true; if (code) sess.failed = !existsSync(join(dir, "index.m3u8")); });
   return sess;
+}
+const LANGS = { fre: "Français", fra: "Français", fr: "Français", vff: "Français", vfq: "Français (Québec)", eng: "Anglais", en: "Anglais", spa: "Espagnol", es: "Espagnol", ger: "Allemand", deu: "Allemand", de: "Allemand", ita: "Italien", it: "Italien", por: "Portugais", pt: "Portugais", ara: "Arabe", ar: "Arabe", tur: "Turc", jpn: "Japonais", kor: "Coréen", chi: "Chinois", zho: "Chinois", rus: "Russe", dut: "Néerlandais", nld: "Néerlandais", pol: "Polonais", hin: "Hindi" };
+function audioTracks(txt) {
+  const out = [];
+  let last = null;
+  for (const l of txt.split(/\r?\n/)) {
+    if (/^\s*Output #/.test(l)) break;
+    const m = l.match(/Stream #0:\d+(?:\[[^\]]*\])?(?:\(([^)]*)\))?: (\w+): (\w+)([^\n]*)/);
+    if (m) {
+      last = null;
+      if (m[2] !== "Audio") continue;
+      const ch = /5\.1|7\.1/.exec(m[4]);
+      last = { i: out.length, lang: (m[1] || "").toLowerCase(), codec: m[3], ch: ch ? ch[0] : "", title: "" };
+      out.push(last);
+      continue;
+    }
+    const t = last && l.match(/^\s+title\s*:\s*(.+)$/);
+    if (t) last.title = t[1].trim().slice(0, 40);
+  }
+  for (const a of out) {
+    const name = LANGS[a.lang] || (a.lang && a.lang !== "und" ? a.lang.toUpperCase() : "");
+    a.label = [name || "Piste " + (a.i + 1), a.title && a.title.toLowerCase() !== (name || "").toLowerCase() ? a.title : "", a.ch].filter(Boolean).join(" · ");
+  }
+  return out;
 }
 function stopSession(key) {
   const s = SESS.get(key);
@@ -188,14 +219,23 @@ async function handleVod(req, res, path, query) {
   const m = path.match(/^\/vod\/(movie|series)\/(\d+)\.([a-z0-9]{2,5})\/(\d+)\/([\w.]+)$/i);
   if (!m || !FFMPEG) { res.writeHead(404); return res.end(); }
   const [, type, id, ext, start, file] = m;
-  const key = `${type}-${id}-${start}`;
+  const a = Math.max(0, Math.min(20, parseInt(query.get("a"), 10) || 0));
+  // Liste des langues du film en cours de conversion
+  if (file === "tracks.json") {
+    let s = null;
+    for (const [k, v] of SESS) if (k.startsWith(`${type}-${id}-`)) s = v;
+    for (let i = 0; s && !s.audio && !s.done && i < 50; i++) await wait(200);
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    return res.end(JSON.stringify({ audio: (s && s.audio) || [] }));
+  }
+  const key = `${type}-${id}-${start}-a${a}`;
   let sess = SESS.get(key);
   // Nouveau lancement du même film (plus de demande depuis 15 s) : on repart d'une conversion neuve
   if (sess && file === "index.m3u8" && Date.now() - sess.last > 15000) { console.log(`  Nouveau lancement de ${key} : conversion relancée`); stopSession(key); sess = null; }
   if (!sess) {
     if (file !== "index.m3u8") { res.writeHead(404); return res.end(); }
     const host = String(env.XTREAM_HOST).replace(/\/+$/, "");
-    sess = await startSession(key, `${host}/${type}/${encodeURIComponent(env.XTREAM_USER)}/${encodeURIComponent(env.XTREAM_PASS)}/${id}.${ext}`, Number(start), 0, { vc: query.get("vc"), direct: query.get("d") === "1" });
+    sess = await startSession(key, `${host}/${type}/${encodeURIComponent(env.XTREAM_USER)}/${encodeURIComponent(env.XTREAM_PASS)}/${id}.${ext}`, Number(start), 0, { vc: query.get("vc"), direct: query.get("d") === "1", a });
   }
   sess.last = Date.now();
   const fp = join(sess.dir, file);

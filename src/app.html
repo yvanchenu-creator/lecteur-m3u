@@ -34,7 +34,12 @@ main{padding:8px 0 40px}
 .grid .tile{width:auto}
 .tile:focus-visible,.tile:hover{transform:scale(1.05);box-shadow:0 0 0 3px var(--accent),0 10px 30px rgba(0,0,0,.6);z-index:1}
 .tile .art{aspect-ratio:16/10;background:#14171d center/contain no-repeat;display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--muted);padding:8px;text-align:center}
-.tile.poster .art{aspect-ratio:2/3;background-size:cover}
+.tile.poster .art{aspect-ratio:2/3;background-color:#0f0f12;background-size:contain}
+.tile.poster .art[style]{padding:0}
+.rw{flex:0 0 auto;scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;width:160px}
+.rw .tile{width:100%}
+.rm{font-size:13px;color:var(--muted);padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+.rm:hover,.rm:focus-visible{outline:none;color:var(--text);border-color:var(--accent)}
 .tile .meta{padding:8px 10px 10px}
 .tile .t{font-size:14px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tile .s{font-size:12px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -82,7 +87,7 @@ main{padding:8px 0 40px}
 #player.idle{cursor:none}
 #pbar .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pmsg{position:absolute;left:0;right:0;top:40%;text-align:center;color:#fff;padding:0 20px;pointer-events:none}
-#sheet{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+#sheet{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
 #sheet.on{display:flex}
 #sheet .box{width:100%;max-width:760px;max-height:85vh;overflow:auto;background:var(--panel);border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
 #sheet h3{margin:0 0 4px}
@@ -105,6 +110,7 @@ main{padding:8px 0 40px}
   <div id="pbar">
     <button class="btn ghost" id="pclose">✕ Fermer</button>
     <div class="ttl" id="ptitle"></div>
+    <button class="btn ghost" id="plang" hidden>Langue</button>
     <button class="btn ghost" id="pfav">☆ Favori</button>
   </div>
 </div>
@@ -210,7 +216,8 @@ function reg(list) { list.forEach((i) => REG.set(i.key, i)); return list; }
 function row(title, items, opts = {}) {
   if (!items.length) return opts.emptyText ? `<section class="row"><h2>${title}</h2><p class="empty">${opts.emptyText}</p></section>` : "";
   reg(items);
-  return `<section class="row"><h2>${title}${opts.small ? ` <small>${opts.small}</small>` : ""}</h2><div class="strip">${items.map((i) => tile(i, opts)).join("")}</div></section>`;
+  const one = (i) => opts.remove ? `<div class="rw">${tile(i, opts)}<button class="rm" data-rm="${esc(i.key)}">✕ Retirer</button></div>` : tile(i, opts);
+  return `<section class="row"><h2>${title}${opts.small ? ` <small>${opts.small}</small>` : ""}</h2><div class="strip">${items.map(one).join("")}</div></section>`;
 }
 // Grand bandeau « Reprendre la lecture » en haut de l'accueil
 function hero(p) {
@@ -222,7 +229,7 @@ function hero(p) {
     <span class="lbl">REPRENDRE LA LECTURE</span><h2>${esc(p.title)}</h2>
     <div class="pg"><i style="width:${Math.min(100, (p.t / p.d) * 100)}%"></i></div>
     <span class="rest">Il reste ${left >= 60 ? Math.floor(left / 60) + " h " + String(left % 60).padStart(2, "0") : left + " min"}</span>
-    <div class="acts"><button class="btn" data-key="${esc(p.key)}">Reprendre</button><button class="btn ghost" data-restart="${esc(p.key)}">Du début</button></div>
+    <div class="acts"><button class="btn" data-key="${esc(p.key)}">Reprendre</button><button class="btn ghost" data-restart="${esc(p.key)}">Du début</button><button class="btn ghost" data-rm="${esc(p.key)}">✕ Retirer</button></div>
   </div></section>`;
 }
 function grid(items, opts = {}) {
@@ -255,7 +262,7 @@ function render() {
     const liveNow = (favLive.length ? favLive : D.live.slice(0, 20).map(liveItem)).slice(0, 20);
     const newMovies = D.vod.map(vodItem).sort((a, b) => b.added - a.added).slice(0, 30);
     const newSeries = D.series.map(seriesItem).sort((a, b) => b.added - a.added).slice(0, 30);
-    body = hero(resume[0]) + row("Reprendre", resume.slice(1))
+    body = hero(resume[0]) + row("Reprendre", resume.slice(1), { remove: true })
       + row("En direct maintenant", liveNow, { wide: true, small: favLive.length ? "vos chaînes favorites" : "" })
       + row("Favoris", favs.filter((f) => f.type !== "live"), { emptyText: favs.length ? "" : "Appuyez sur ☆ pendant la lecture pour ajouter un favori." })
       + row("Nouveaux films", newMovies)
@@ -288,7 +295,7 @@ let LAST = null;
 document.addEventListener("focusin", (e) => {
   const el = e.target;
   if (!$("#app").contains(el)) return;
-  for (const a of ["data-key", "data-restart", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
+  for (const a of ["data-key", "data-restart", "data-rm", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
   LAST = el.id ? ["id", el.id] : null;
 });
 function restoreFocus() {
@@ -388,7 +395,7 @@ function ask(html, buttons) {
 const APPLE = /Apple/.test(navigator.vendor || "") && !/Chrome|CriOS|Android/.test(navigator.userAgent) || /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 async function play(it, forceRemux) {
   // mkv/avi : toujours convertis par le Mac (Safari ne lit pas le mkv, Chrome n'a souvent pas le son AC3/DTS)
-  if (!forceRemux && it.type !== "live" && !NATIVE.test(it.ext || "") && !(it.key || "").startsWith("series:") && (await caps()).remux) forceRemux = "apple";
+  if (!forceRemux && it.type !== "live" && (!NATIVE.test(it.ext || "") || /\bMULTI\b/i.test(it.title || "")) && !(it.key || "").startsWith("series:") && (await caps()).remux) forceRemux = "apple";
   if (it.type === "series" && it.key.startsWith("series:")) return openSeries(it);
   // Depuis la liste d'épisodes : la fiche cède sa place au lecteur dans l'historique
   if (history.state && history.state.layer === "sheet") { $("#sheet").classList.remove("on"); history.replaceState({ layer: "player-pending" }, ""); }
@@ -407,12 +414,14 @@ async function play(it, forceRemux) {
   $("#ptitle").textContent = it.title;
   $("#pfav").textContent = Store.isFav(it.key) ? "★ Favori" : "☆ Favori";
   $("#pmsg").textContent = "";
+  $("#plang").hidden = true; me.tracks = null;
   if (history.state && history.state.layer === "player-pending") history.replaceState({ layer: "player" }, "");
   else if (!$("#player").classList.contains("on")) history.pushState({ layer: "player" }, "");
   $("#player").classList.add("on");
   $("#pclose").focus();
   stopMedia();
   const p = it.type !== "live" ? Store.pos(it.key) : null;
+  if (me.a == null && p && p.a) me.a = p.a; // langue choisie la dernière fois
   const resumeAt = p && p.t > 5 && (!p.d || p.t / p.d < 0.95) ? p.t : 0;
   let url = streamUrl(it);
   if (it.type !== "live") {
@@ -423,7 +432,7 @@ async function play(it, forceRemux) {
     // Lecture directe d'abord (Chrome lit les mkv) ; conversion par le Mac seulement si le navigateur échoue (Safari)
     if (forceRemux && (await caps()).remux) {
       me.offset = Math.floor(resumeAt);
-      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}/index.m3u8?d=${forceRemux === "direct-failed" ? 1 : 0}&vc=${encodeURIComponent(me.vc || "")}`;
+      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}/index.m3u8?d=${forceRemux === "direct-failed" ? 1 : 0}&vc=${encodeURIComponent(me.vc || "")}&a=${me.a || 0}`;
       $("#pmsg").textContent = "Préparation de la vidéo…";
     }
   }
@@ -438,7 +447,10 @@ async function play(it, forceRemux) {
     video.src = url;
   }
   video.onloadedmetadata = () => { if (!me.offset && resumeAt) video.currentTime = resumeAt; };
-  video.onplaying = () => { if ($("#pmsg").textContent.startsWith("Préparation")) $("#pmsg").textContent = ""; };
+  video.onplaying = () => {
+    if ($("#pmsg").textContent.startsWith("Préparation")) $("#pmsg").textContent = "";
+    if (url.startsWith("/vod/") && !me.tracks) loadTracks(me, url);
+  };
   video.onerror = async () => {
     if (!forceRemux && !me.offset && cur === me && it.type !== "live" && !NATIVE.test(it.ext || "") && (await caps()).remux) return play(it, "direct-failed");
     $("#pmsg").textContent = !NATIVE.test(it.ext || "") && it.type !== "live" ? "Ce format vidéo (" + it.ext + ") n'est pas lisible ici" + (forceRemux ? " (conversion échouée, code " + ((video.error && video.error.code) || "?") + ")." : CAPS && CAPS.remux === false ? " (outil de conversion pas encore prêt sur le Mac)." : ".") : "Lecture impossible pour le moment.";
@@ -454,12 +466,36 @@ async function play(it, forceRemux) {
     }
   }, 3000);
 }
+// Films MULTI : bouton « Langue » quand le film a plusieurs pistes audio
+async function loadTracks(me, url) {
+  me.tracks = [];
+  try {
+    const r = await fetch(url.split("/index.m3u8")[0] + "/tracks.json", { credentials: "include" });
+    me.tracks = (await r.json()).audio || [];
+  } catch {}
+  if (cur !== me || me.tracks.length < 2) return;
+  const t = me.tracks[me.a || 0] || me.tracks[0];
+  $("#plang").textContent = "Langue : " + t.label.split(" · ")[0];
+  $("#plang").hidden = false;
+}
+$("#plang").onclick = async () => {
+  const me = cur;
+  if (!me || !me.tracks || me.tracks.length < 2) return;
+  const was = !video.paused;
+  video.pause();
+  const n = await ask(`<h3>Langue du film</h3>`, [...me.tracks.map((t, i) => (i === (me.a || 0) ? "✓ " : "") + t.label), "Annuler"]);
+  if (cur !== me) return;
+  if (n >= me.tracks.length || n === (me.a || 0)) { if (was) video.play().catch(() => {}); return; }
+  savePos();
+  const { tracks, offset, ...it } = me;
+  play({ ...it, a: n }, "apple");
+};
 function savePos() {
   if (!cur || cur.type === "live" || !video.currentTime) return;
   const t = Math.floor(cur.offset + video.currentTime);
   const d = Math.floor(cur.dur || (isFinite(video.duration) ? cur.offset + video.duration : 0));
   if (!d) return;
-  Store.savePos({ key: cur.key, type: cur.type, id: cur.id, title: cur.title, img: cur.img, ext: cur.ext, dur: cur.dur }, t, d);
+  Store.savePos({ key: cur.key, type: cur.type, id: cur.id, title: cur.title, img: cur.img, ext: cur.ext, dur: cur.dur, a: cur.a || 0 }, t, d);
 }
 function stopMedia() {
   clearInterval(saveTimer);
@@ -501,6 +537,16 @@ document.addEventListener("click", (e) => {
   if (t) { S.tab = t.dataset.tab; S.cat = null; S.q = ""; render(); window.scrollTo(0, 0); return; }
   const c = e.target.closest("[data-cat]");
   if (c) { S.cat = c.dataset.cat; render(); return; }
+  const rm = e.target.closest("[data-rm]");
+  if (rm) {
+    const p = Store.pos(rm.dataset.rm);
+    if (p) { const { t, d, at, ...item } = p; Store.savePos(item, 0, d); }
+    // la sélection passe au titre voisin
+    const all = [...document.querySelectorAll("#app [data-rm]")], i = all.indexOf(rm), nb = all[i + 1] || all[i - 1];
+    LAST = nb ? ["data-rm", nb.dataset.rm] : null;
+    if (document.activeElement) document.activeElement.blur();
+    render(); return;
+  }
   const rs = e.target.closest("[data-restart]");
   if (rs && REG.has(rs.dataset.restart)) { const it = REG.get(rs.dataset.restart); const p = Store.pos(it.key); if (p) Store.savePos(it, 0, p.d); play(it); return; }
   const k = e.target.closest("[data-key]");
