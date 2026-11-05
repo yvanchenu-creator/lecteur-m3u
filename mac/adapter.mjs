@@ -216,10 +216,11 @@ function stopSession(key) {
 setInterval(() => { for (const [k, s] of SESS) if (Date.now() - s.last > 120000) stopSession(k); }, 30000).unref();
 
 async function handleVod(req, res, path, query) {
-  const m = path.match(/^\/vod\/(movie|series)\/(\d+)\.([a-z0-9]{2,5})\/(\d+)\/([\w.]+)$/i);
+  const m = path.match(/^\/vod\/(movie|series)\/(\d+)\.([a-z0-9]{2,5})\/(\d+)(?:-a(\d+))?\/([\w.]+)$/i);
   if (!m || !FFMPEG) { res.writeHead(404); return res.end(); }
-  const [, type, id, ext, start, file] = m;
-  const a = Math.max(0, Math.min(20, parseInt(query.get("a"), 10) || 0));
+  // La langue fait partie du chemin : les segments (adresses relatives) la gardent
+  const [, type, id, ext, start, pa, file] = m;
+  const a = Math.max(0, Math.min(20, parseInt(pa ?? query.get("a"), 10) || 0));
   // Liste des langues du film en cours de conversion
   if (file === "tracks.json") {
     let s = null;

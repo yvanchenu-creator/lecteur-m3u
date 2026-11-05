@@ -432,7 +432,7 @@ async function play(it, forceRemux) {
     // Lecture directe d'abord (Chrome lit les mkv) ; conversion par le Mac seulement si le navigateur échoue (Safari)
     if (forceRemux && (await caps()).remux) {
       me.offset = Math.floor(resumeAt);
-      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}/index.m3u8?d=${forceRemux === "direct-failed" ? 1 : 0}&vc=${encodeURIComponent(me.vc || "")}&a=${me.a || 0}`;
+      url = `/vod/${it.type === "movie" ? "movie" : "series"}/${it.id}.${it.ext}/${me.offset}${me.a ? "-a" + me.a : ""}/index.m3u8?d=${forceRemux === "direct-failed" ? 1 : 0}&vc=${encodeURIComponent(me.vc || "")}`;
       $("#pmsg").textContent = "Préparation de la vidéo…";
     }
   }
