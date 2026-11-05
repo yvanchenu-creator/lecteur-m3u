@@ -8,7 +8,7 @@ const data = {
   "": { user_info: { username: "u", password: "p", status: "Active" }, server_info: {} },
   get_live_categories: [{ category_id: "1", category_name: "France" }, { category_id: "2", category_name: "Sport" }],
   get_live_streams: Array.from({ length: 12 }, (_, i) => ({ stream_id: 100 + i, name: "Chaîne " + (i + 1), stream_icon: i % 2 ? "http://127.0.0.1:9100/logo.png" : "", category_id: i < 8 ? "1" : "2" })),
-  get_vod_info: { info: { duration_secs: 40 } },
+  get_vod_info: { info: { duration_secs: 6300, plot: "Un été au bord de la mer, une famille se retrouve une dernière fois.", releasedate: "2024-06-12", genre: "Drame", rating: "7.4", director: "A. Martin", cast: "Léa Roux, Paul Dumas" } },
   get_vod_categories: [{ category_id: "10", category_name: "Films récents" }],
   get_vod_streams: Array.from({ length: 40 }, (_, i) => ({ stream_id: 500 + i, name: "Film " + (i + 1), stream_icon: "http://127.0.0.1:9100/logo.png", category_id: "10", added: String(now - i * 3600), container_extension: i === 0 ? "mkv" : "mp4" })).map((x, i) => i === 0 ? { ...x, stream_id: 600, name: "Film MKV MULTI" } : x),
   get_series_categories: [{ category_id: "20", category_name: "Séries" }],

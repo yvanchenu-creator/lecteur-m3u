@@ -102,7 +102,7 @@ async function handle(request, env) {
     const cur = db.data[pid] = db.data[pid] || { favs: {}, pos: {} };
     if (request.method === "PUT") {
       const inc = await request.json().catch(() => ({}));
-      for (const part of ["favs", "pos"]) {
+      for (const part of ["favs", "pos", "prefs"]) {
         cur[part] = cur[part] || {};
         for (const [k, v] of Object.entries((inc && inc[part]) || {})) {
           if (v && typeof v === "object" && (!cur[part][k] || (v.at || 0) > (cur[part][k].at || 0))) cur[part][k] = v;
