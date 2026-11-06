@@ -320,7 +320,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(port, "0.0.0.0", () => {
   const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i.address);
-  console.log("\n  Lecteur M3U démarré. Sur l'iPad, l'iPhone ou la TV, ouvrez :\n");
+  console.log("\n  Blasto TV démarré. Sur l'iPad, l'iPhone ou la TV, ouvrez :\n");
   for (const ip of ips) console.log(`     http://${ip}:${port}${ip.startsWith("100.") ? "   ← adresse Tailscale (marche aussi hors de la maison)" : ""}`);
   console.log("\n  Laissez cette fenêtre ouverte. Pour arrêter : fermez-la.\n");
 });

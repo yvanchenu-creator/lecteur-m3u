@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 const html = readFileSync("src/app.html", "utf8");
-const w = readFileSync("src/worker.js", "utf8").replace("__APP_HTML__", () => JSON.stringify(html));
+const w = readFileSync("src/worker.js", "utf8").replace("__APP_HTML__", () => JSON.stringify(html))
+  .replace("__ICON_SVG__", () => JSON.stringify(readFileSync("logo/blasto-tv-icone.svg", "utf8")))
+  .replace("__ICON_180__", () => JSON.stringify(readFileSync("logo/blasto-tv-180.png").toString("base64")))
+  .replace("__ICON_512__", () => JSON.stringify(readFileSync("logo/blasto-tv-512.png").toString("base64")));
 mkdirSync("dist/mac", { recursive: true });
 writeFileSync("dist/worker.js", w);
 const mac = readFileSync("mac/adapter.mjs", "utf8") + "\n" + w.replace("export default {", "var WORKER = {").replace(/^\/\/ Variables à définir[\s\S]*?APP_PIN .*\n/m, "");

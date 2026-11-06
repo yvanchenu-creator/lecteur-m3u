@@ -22,7 +22,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/** Lecteur M3U pour Google TV : affiche le lecteur servi par le Mac, pilotable à la télécommande. */
+/** Blasto TV pour Google TV : affiche le lecteur servi par le Mac, pilotable à la télécommande. */
 public class MainActivity extends Activity {
     private static final String DEFAULT_URL = "http://192.168.1.95:8080";
     private WebView web;
@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences("lecteur", MODE_PRIVATE);
         root = new FrameLayout(this);
-        root.setBackgroundColor(Color.parseColor("#0F1115"));
+        root.setBackgroundColor(Color.parseColor("#0B0B0D"));
         setContentView(root);
         String url = prefs.getString("url", null);
         if (url == null) showSetup(null); else showWeb(url);
@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
     private void showWeb(String url) {
         root.removeAllViews();
         web = new WebView(this);
-        web.setBackgroundColor(Color.parseColor("#0F1115"));
+        web.setBackgroundColor(Color.parseColor("#0B0B0D"));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
         box.setGravity(Gravity.CENTER);
         box.setPadding(80, 40, 80, 40);
         TextView title = new TextView(this);
-        title.setText("Lecteur M3U");
+        title.setText("Blasto TV");
         title.setTextSize(30);
         title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER);

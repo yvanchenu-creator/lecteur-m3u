@@ -1,4 +1,4 @@
-// Lecteur M3U : Worker Cloudflare (application + relais sécurisé vers le fournisseur Xtream)
+// Blasto TV : Worker Cloudflare (application + relais sécurisé vers le fournisseur Xtream)
 // Variables à définir dans Cloudflare (Settings > Variables, en "Secret") :
 //   XTREAM_HOST  ex. http://p5.siplinks.me
 //   XTREAM_USER  identifiant IPTV
@@ -6,6 +6,7 @@
 //   APP_PIN      code d'accès choisi par vous (protège votre abonnement)
 
 const APP_HTML = __APP_HTML__;
+const ICON_SVG = __ICON_SVG__, ICON_180 = __ICON_180__, ICON_512 = __ICON_512__;
 
 const COOKIE = "m3u_pin";
 let WATCH = null;            // { sid, name, title, at } : la lecture en cours
@@ -36,9 +37,16 @@ async function handle(request, env) {
   }
   if (path === "/manifest.webmanifest") {
     return new Response(JSON.stringify({
-      name: "Lecteur M3U", short_name: "Lecteur", display: "standalone",
-      background_color: "#0f1115", theme_color: "#0f1115", start_url: "/",
+      name: "Blasto TV", short_name: "Blasto TV", display: "standalone",
+      background_color: "#0b0b0d", theme_color: "#0b0b0d", start_url: "/",
+      icons: [{ src: "/icon-180.png", sizes: "180x180", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }, { src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
     }), { headers: { "content-type": "application/manifest+json" } });
+  }
+  // Logo Blasto TV (onglet du navigateur, écran d'accueil iPhone/iPad)
+  if (path === "/icon.svg") return new Response(ICON_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "max-age=86400" } });
+  if (path === "/icon-180.png" || path === "/icon-512.png") {
+    const b64 = path === "/icon-180.png" ? ICON_180 : ICON_512;
+    return new Response(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)), { headers: { "content-type": "image/png", "cache-control": "max-age=86400" } });
   }
 
   if (path === "/login" && request.method === "POST") {
