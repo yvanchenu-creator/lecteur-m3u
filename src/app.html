@@ -92,6 +92,9 @@ main{padding:8px 0 40px}
 #player.idle{cursor:none}
 #pbar .ttl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cats .cedit{border-style:dashed;color:var(--accent)}
+.cats.plat button:not(.cedit){font-family:"Bebas Neue",Inter,sans-serif;font-size:18px;letter-spacing:.06em;padding:6px 16px}
+.cats.sub{padding-top:0}
+.cats.sub button{font-size:13px;padding:5px 11px}
 .cl{display:flex;width:100%;gap:10px;padding:9px 10px;border-radius:8px;text-align:left;align-items:center}
 .cl:hover,.cl:focus-visible{background:var(--tile);outline:none}
 .cl .ck{width:22px;flex:none;color:var(--accent);font-weight:700}
@@ -197,7 +200,7 @@ document.addEventListener("visibilitychange", async () => {
 
 // ---------- Données ----------
 const D = { live: [], liveCats: [], vod: [], vodCats: [], series: [], seriesCats: [], info: null };
-const S = { tab: "home", cat: null, q: "" };
+const S = { tab: "home", grp: null, cat: null, q: "" };
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const img = (u) => (u && /^https?:/i.test(u) ? "/img?u=" + encodeURIComponent(u) : "");
@@ -234,6 +237,39 @@ function hidden(tab) { return new Set(Store.pref("hide:" + tab, []).map(String))
 function visible(tab, list) { const h = hidden(tab); return h.size ? list.filter((x) => !h.has(String(x.category_id))) : list; }
 function vodItem(s) { return { key: "movie:" + s.stream_id, type: "movie", id: s.stream_id, title: s.name, img: s.stream_icon, ext: s.container_extension || "mp4", added: +s.added || 0 }; }
 function seriesItem(s) { return { key: "series:" + s.series_id, type: "series", id: s.series_id, title: s.name, img: s.cover, added: +s.last_modified || 0 }; }
+
+// ---------- Regroupement des catégories par plateforme ----------
+// Reconnaît la plateforme dans le nom de catégorie du fournisseur (ex. « FR | NETFLIX ACTION »)
+const PLATFORMS = [
+  ["netflix", "Netflix", /netflix/i],
+  ["disney", "Disney+", /disney\s*(\+|plus)?/i],
+  ["prime", "Prime Video", /amazon(\s*prime)?(\s*video)?|prime\s*video/i],
+  ["apple", "Apple TV+", /apple\s*tv\s*(\+|plus)?/i],
+  ["canal", "Canal+", /my\s*canal|canal\s*(\+|plus)/i],
+  ["max", "HBO Max", /hbo(\s*max)?/i],
+  ["paramount", "Paramount+", /paramount\s*(\+|plus)?/i],
+  ["ocs", "OCS", /\bocs\b/i],
+  ["crunchyroll", "Crunchyroll", /crunchyroll/i],
+  ["arte", "Arte", /\barte\b/i],
+  ["tf1", "TF1+", /tf1\s*(\+|plus)/i],
+];
+function platformGroups(cats) {
+  const map = new Map();
+  for (const c of cats) {
+    const name = String(c.category_name || "");
+    const p = PLATFORMS.find(([, , re]) => re.test(name));
+    const id = p ? p[0] : "autres";
+    if (!map.has(id)) map.set(id, { id, name: p ? p[1] : "Autres", cats: [] });
+    // Sous-catégorie : le nom sans la plateforme ni les séparateurs autour
+    let sub = p ? name.replace(p[2], " ") : name;
+    sub = sub.replace(/[|\-–—:•·\/\[\]()_*]+/g, " ").replace(/\s+/g, " ").trim();
+    if (p) sub = sub.replace(/^(?:(?:FR|FRA|FRENCH|VF|VFF|VOD|EN|UK|US|VOSTFR|MULTI|FILMS?|S[ÉE]RIES?)\s+)+/i, "").trim() || sub;
+    if (sub && sub === sub.toUpperCase()) sub = sub.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
+    map.get(id).cats.push({ ...c, sub: sub || "Catalogue" });
+  }
+  const order = PLATFORMS.map((p) => p[0]).concat("autres");
+  return [...map.values()].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+}
 
 // ---------- Rendu ----------
 function tile(it, opts = {}) {
@@ -322,17 +358,30 @@ function render() {
     }[S.tab];
     const [allCats, list, mk, opts] = cfg;
     const h = hidden(S.tab), cats = allCats.filter((c) => !h.has(String(c.category_id)));
-    if ((!S.cat || h.has(S.cat)) && cats[0]) S.cat = String(cats[0].category_id);
-    const items = list.filter((x) => String(x.category_id) === S.cat).map(mk);
+    const groups = platformGroups(cats);
+    let chips, items;
+    if (groups.length > 1 || (groups[0] && groups[0].id !== "autres")) {
+      // Menu par plateforme : Netflix, Disney+, Prime Video… puis leurs sous-catégories
+      let g = groups.find((x) => x.id === S.grp);
+      if (!g) { g = groups[0]; S.grp = g.id; S.cat = null; }
+      if (S.cat !== "*" && !g.cats.some((c) => String(c.category_id) === S.cat)) S.cat = "*";
+      const ids = S.cat === "*" ? new Set(g.cats.map((c) => String(c.category_id))) : new Set([S.cat]);
+      items = list.filter((x) => ids.has(String(x.category_id))).map(mk);
+      chips = `<div class="cats plat"><button class="cedit" data-catedit="${S.tab}">⚙ Catégories</button>${groups.map((x) => `<button data-grp="${x.id}" class="${x.id === g.id ? "on" : ""}">${esc(x.name)}</button>`).join("")}</div>`
+        + `<div class="cats sub"><button data-cat="*" class="${S.cat === "*" ? "on" : ""}">${g.id === "autres" ? "Tout" : "Tout " + esc(g.name)}</button>${g.cats.map((c) => `<button data-cat="${esc(c.category_id)}" class="${String(c.category_id) === S.cat ? "on" : ""}">${esc(c.sub)}</button>`).join("")}</div>`;
+    } else {
+      if ((!S.cat || S.cat === "*" || h.has(S.cat)) && cats[0]) S.cat = String(cats[0].category_id);
+      items = list.filter((x) => String(x.category_id) === S.cat).map(mk);
+      chips = `<div class="cats"><button class="cedit" data-catedit="${S.tab}">⚙ Catégories</button>${cats.map((c) => `<button data-cat="${esc(c.category_id)}" class="${String(c.category_id) === S.cat ? "on" : ""}">${esc(c.category_name)}</button>`).join("")}</div>`;
+    }
     if (S.tab !== "live") items.sort((a, b) => b.added - a.added);
-    body = `<div class="cats"><button class="cedit" data-catedit="${S.tab}">⚙ Catégories</button>${cats.map((c) => `<button data-cat="${esc(c.category_id)}" class="${String(c.category_id) === S.cat ? "on" : ""}">${esc(c.category_name)}</button>`).join("")}</div>${cats.length ? grid(items, opts) : '<p class="empty">Toutes les catégories sont masquées. Appuyez sur « ⚙ Catégories » pour en afficher.</p>'}`;
+    body = chips + (cats.length ? grid(items, opts) : '<p class="empty">Toutes les catégories sont masquées. Appuyez sur « ⚙ Catégories » pour en afficher.</p>');
   }
   const hadFocus = document.activeElement && document.activeElement.id === "search";
   $("#app").innerHTML = shell(body);
   if (hadFocus) { const s = $("#search"); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   else restoreFocus();
-  const on = document.querySelector(".cats .on");
-  if (on) on.scrollIntoView({ block: "nearest", inline: "center" });
+  document.querySelectorAll(".cats .on").forEach((on) => on.scrollIntoView({ block: "nearest", inline: "center" }));
   loadEpg();
 }
 
@@ -341,7 +390,7 @@ let LAST = null;
 document.addEventListener("focusin", (e) => {
   const el = e.target;
   if (!$("#app").contains(el)) return;
-  for (const a of ["data-key", "data-restart", "data-rm", "data-catedit", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
+  for (const a of ["data-key", "data-restart", "data-rm", "data-catedit", "data-grp", "data-cat", "data-tab", "data-pid"]) if (el.hasAttribute(a)) { LAST = [a, el.getAttribute(a)]; return; }
   LAST = el.id ? ["id", el.id] : null;
 });
 function restoreFocus() {
@@ -733,7 +782,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) saveP
 document.addEventListener("click", (e) => {
   if (e.target.closest("#pbtn")) { savePos(); showProfiles(false); return; }
   const t = e.target.closest("[data-tab]");
-  if (t) { S.tab = t.dataset.tab; S.cat = null; S.q = ""; render(); window.scrollTo(0, 0); return; }
+  if (t) { S.tab = t.dataset.tab; S.cat = null; S.grp = null; S.q = ""; render(); window.scrollTo(0, 0); return; }
+  const gb = e.target.closest("[data-grp]");
+  if (gb) { if (S.grp !== gb.dataset.grp) { S.grp = gb.dataset.grp; S.cat = "*"; } render(); return; }
   const c = e.target.closest("[data-cat]");
   if (c) { S.cat = c.dataset.cat; render(); return; }
   const rm = e.target.closest("[data-rm]");
