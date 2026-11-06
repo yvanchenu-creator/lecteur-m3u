@@ -9,14 +9,19 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="manifest" href="/manifest.webmanifest">
-<title>Lecteur M3U</title>
+<title>Blasto TV</title>
+<meta name="apple-mobile-web-app-title" content="Blasto TV">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <style>
 :root{--bg:#0b0b0d;--panel:#16161a;--tile:#1c1c22;--line:#2a2a30;--text:#f2f2f2;--muted:#a6a6ad;--accent:#f5b83d;--live:#e5484d;--radius:8px;--display:"Bebas Neue",Impact,sans-serif}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(11,11,13,.94);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)}
-header h1{font:400 30px/1 var(--display);letter-spacing:2px;color:var(--accent);margin:0 12px 0 0;white-space:nowrap}
+header h1{font:400 30px/1 var(--display);letter-spacing:2px;color:var(--text);margin:0 12px 0 0;white-space:nowrap;display:flex;align-items:center;gap:8px}
+header h1 img{width:34px;height:34px}header h1 span{color:var(--accent)}
+#login .logo,#profiles .logo{width:96px;height:96px;margin:0 auto 4px;display:block}
 nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
 nav button{padding:8px 12px;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent;border-radius:4px 4px 0 0}
@@ -277,7 +282,7 @@ function grid(items, opts = {}) {
 
 function shell(body) {
   const tabs = [["home", "Accueil"], ["live", "TV en direct"], ["movie", "Films"], ["series", "Séries"], ["fav", "Favoris"]];
-  return `<header><h1>LECTEUR</h1><nav>${tabs.map(([k, l]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${l}</button>`).join("")}</nav>
+  return `<header><h1><img src="/icon.svg" alt="">BLASTO <span>TV</span></h1><nav>${tabs.map(([k, l]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${l}</button>`).join("")}</nav>
     <input id="search" type="search" placeholder="Rechercher…" value="${esc(S.q)}">${avatar(PROFILES[Store.pid], "pbtn", "Changer de profil")}</header><main>${body}</main>`;
 }
 
@@ -823,7 +828,7 @@ async function loadProfiles() {
 }
 function showProfiles(edit) {
   const list = Object.entries(PROFILES).sort((a, b) => a[1].at - b[1].at);
-  $("#app").innerHTML = `<div id="profiles"><h2>Qui regarde ?</h2><div class="plist">
+  $("#app").innerHTML = `<div id="profiles"><img class="logo" src="/icon.svg" alt=""><h2>Qui regarde ?</h2><div class="plist">
     ${list.map(([id, p]) => `<div class="pitem"><button class="avatar big" data-pid="${esc(id)}" style="background:${esc(p.color)}">${esc(p.name.slice(0, 1).toUpperCase())}</button><div>${esc(p.name)}</div>${edit ? `<button class="pdel" data-del="${esc(id)}">Supprimer</button>` : ""}</div>`).join("")}
     ${list.length < 6 ? `<div class="pitem"><button class="avatar big add" id="padd">+</button><div>Ajouter</div></div>` : ""}
   </div>${list.length ? `<button class="btn ghost" id="pedit">${edit ? "Terminé" : "Gérer les profils"}</button>` : ""}</div>`;
@@ -852,7 +857,7 @@ function showProfiles(edit) {
 
 // ---------- Connexion ----------
 function showLogin(err) {
-  $("#app").innerHTML = `<form id="login"><h2>Lecteur M3U</h2><div style="color:var(--muted)">Entrez votre code d'accès</div>
+  $("#app").innerHTML = `<form id="login"><img class="logo" src="/icon.svg" alt=""><h2>Blasto TV</h2><div style="color:var(--muted)">Entrez votre code d'accès</div>
     <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" autofocus>
     ${err ? '<div style="color:var(--live);margin-bottom:10px">Code incorrect</div>' : ""}
     <button class="btn" type="submit">Entrer</button></form>`;

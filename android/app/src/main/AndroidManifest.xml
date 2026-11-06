@@ -4,7 +4,7 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application
-        android:label="Lecteur"
+        android:label="Blasto TV"
         android:icon="@drawable/ic_launcher"
         android:banner="@drawable/banner"
         android:usesCleartextTraffic="true"

@@ -1,4 +1,4 @@
-# Lecteur M3U familial
+# Blasto TV (lecteur M3U familial)
 
 Lecteur IPTV (abonnement Xtream) pour la famille : tuiles En direct / Nouveautés / Favoris, profils, reprise de lecture entre appareils, playlist rechargée à chaque démarrage.
 
